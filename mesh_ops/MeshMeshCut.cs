@@ -411,7 +411,10 @@ namespace g3
         void connect_edges()
         {
             int NS = Segments.Length;
-            for ( int si = 0; si < NS; ++si ) {
+            var noConnectedSegments = new List<IntersectSegment>();
+
+            for (int si = 0; si < NS; ++si)
+            {
                 IntersectSegment seg = Segments[si];
                 if (seg.v0 == seg.v1)
                     continue;       // degenerate!
@@ -426,17 +429,17 @@ namespace g3
                 if (eid != DMesh3.InvalidID)
                     continue;       // already connected
 
-                // TODO: in many cases there is an edge we added during a
-                // poke or split that we could flip to get edge AB. 
-                // this is much faster and we should do it where possible!
-                // HOWEVER we need to know which edges we can and cannot flip
-                // is_inserted_free_edge() should do this but not implemented yet
-                // possibly also requires that we do all these flips before any
-                // calls to insert_segment() !
+                noConnectedSegments.Add(seg);
+            }
 
-                try {
-                    insert_segment(seg);
-                } catch (Exception) {
+            foreach (var noConnectedIntersectSegment in noConnectedSegments)
+            {
+                try
+                {
+                    insert_segment(noConnectedIntersectSegment);
+                }
+                catch (Exception)
+                {
                     // ignore?
                 }
             }
