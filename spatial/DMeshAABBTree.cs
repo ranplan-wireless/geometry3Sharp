@@ -739,7 +739,7 @@ namespace g3
                                     result.Segments.Add(new SegmentIntersection()
                                         { t0 = ti, t1 = tj, point0 = intr.Points[0], point1 = intr.Points[1] });
                                 }
-                                else if (intr.Quantity == 3)
+                                else
                                 {
                                     var ptCount = intr.PolygonPoints.Length - 1;
                                     for (var pi = 0; pi < ptCount; pi++)
@@ -750,8 +750,6 @@ namespace g3
                                     result.Segments.Add(new SegmentIntersection()
                                         { t0 = ti, t1 = tj, point0 = intr.PolygonPoints[ptCount], point1 = intr.PolygonPoints[0] });
                                 }
-                                else
-                                    throw new Exception("DMeshAABBTree.find_intersections: found quantity " + intr.Quantity);
                             }
                         }
                     }
