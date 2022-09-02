@@ -684,6 +684,7 @@ namespace g3
             result.Segments = new List<SegmentIntersection>();
 
             IntrTriangle3Triangle3 intr = new IntrTriangle3Triangle3(new Triangle3d(), new Triangle3d());
+            intr.ReportCoplanarIntersection = true;
             find_intersections(root_index, otherTree, TransformF, otherTree.root_index, 0, intr, result);
 
             return result;
@@ -724,18 +725,34 @@ namespace g3
 
                         // [RMS] Test() is much faster than Find() so it makes sense to call it first, as most
                         // triangles will not intersect (right?)
-                        if (intr.Test()) {
-                            if ( intr.Find() ) { 
-                                if (intr.Quantity == 1) {
-                                    result.Points.Add(new PointIntersection() 
-                                            { t0 = ti, t1 = tj, point = intr.Points[0] });
-                                } else if (intr.Quantity == 2) {
-                                    result.Segments.Add( new SegmentIntersection() 
-                                            { t0 = ti, t1 = tj, point0 = intr.Points[0], point1 = intr.Points[1] });
-                                } else {
-                                    throw new Exception("DMeshAABBTree.find_intersections: found quantity " + intr.Quantity );
+                        if (intr.Test())
+                        {
+                            if (intr.Find())
+                            {
+                                if (intr.Quantity == 1)
+                                {
+                                    result.Points.Add(new PointIntersection()
+                                        { t0 = ti, t1 = tj, point = intr.Points[0] });
                                 }
+                                else if (intr.Quantity == 2)
+                                {
+                                    result.Segments.Add(new SegmentIntersection()
+                                        { t0 = ti, t1 = tj, point0 = intr.Points[0], point1 = intr.Points[1] });
                                 }
+                                else if (intr.Quantity == 3)
+                                {
+                                    var ptCount = intr.PolygonPoints.Length - 1;
+                                    for (var pi = 0; pi < ptCount; pi++)
+                                    {
+                                        result.Segments.Add(new SegmentIntersection()
+                                            { t0 = ti, t1 = tj, point0 = intr.PolygonPoints[pi], point1 = intr.PolygonPoints[pi + 1] });
+                                    }
+                                    result.Segments.Add(new SegmentIntersection()
+                                        { t0 = ti, t1 = tj, point0 = intr.PolygonPoints[ptCount], point1 = intr.PolygonPoints[0] });
+                                }
+                                else
+                                    throw new Exception("DMeshAABBTree.find_intersections: found quantity " + intr.Quantity);
+                            }
                         }
                     }
                 }
