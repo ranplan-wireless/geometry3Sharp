@@ -41,8 +41,10 @@ namespace g3
             double y1 = vec1[1] - vec0[1];
             double x0y1 = x0 * y1;
             double x1y0 = x1 * y0;
-            double det = x0y1 - x1y0;
             const double zero = 0.0;
+            double det = x0y1 - x1y0;
+            if (det < MathUtil.ZeroTolerance && det > -MathUtil.ZeroTolerance)
+                det = zero;
 
             return (det > zero ? +1 : (det < zero ? -1 : 0));
         }
