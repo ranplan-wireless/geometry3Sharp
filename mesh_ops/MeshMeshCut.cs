@@ -65,10 +65,11 @@ namespace g3
         {
             DMeshAABBTree3 spatial = new DMeshAABBTree3(CutMesh, true);
             spatial.WindingNumber(Vector3d.Zero);
+            var threshold = Target.IsClosed() ? 0.9 : 0.45;
             SafeListBuilder<int> removeT = new SafeListBuilder<int>();
             gParallel.ForEach(Target.TriangleIndices(), (tid) => {
                 Vector3d v = Target.GetTriCentroid(tid);
-                if (spatial.WindingNumber(v) > 0.9)
+                if (spatial.WindingNumber(v) > threshold)
                     removeT.SafeAdd(tid);
             });
             MeshEditor.RemoveTriangles(Target, removeT.Result);
@@ -205,7 +206,7 @@ namespace g3
                     iseg[j] = sv;
 
                     // this vtx is tol-equal to input mesh vtx
-                    int existing_v = find_existing_vertex(isect.point0);
+                    int existing_v = find_existing_vertex(v);
                     if (existing_v >= 0) {
                         sv.initial_type = sv.type = 0;
                         sv.elem_id = existing_v;
@@ -438,9 +439,9 @@ namespace g3
                 {
                     insert_segment(noConnectedIntersectSegment);
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
-                    // ignore?
+                    System.Diagnostics.Debug.WriteLine(e);
                 }
             }
         }
