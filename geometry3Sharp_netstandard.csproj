@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>1.0.0.1</Version>
+    <Version>1.1.0.3</Version>
 	<Title>geometry3Sharp</Title>
     <Authors>Ryan Schmidt</Authors>
     <Company>gradientspace</Company>
@@ -17,7 +17,7 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;</TargetFrameworks>
     <OutputType>Library</OutputType>
-    <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <RootNamespace>g3</RootNamespace>
     <AssemblyName>geometry3Sharp</AssemblyName>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
