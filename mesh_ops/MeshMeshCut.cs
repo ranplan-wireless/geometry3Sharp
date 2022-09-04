@@ -60,43 +60,18 @@ namespace g3
                 SegmentInsertVertices.Add(sv.vtx_id);
         }
 
-        public enum InclusiveMode
-        {
-            Centroid,
-            Vertices
-        }
 
-        public void RemoveContained(InclusiveMode mode = InclusiveMode.Centroid)
+        public void RemoveContained()
         {
             DMeshAABBTree3 spatial = new DMeshAABBTree3(CutMesh, true);
             spatial.WindingNumber(Vector3d.Zero);
-            var threshold = CutMesh.IsClosed() ? 0.9 : 0.45;
+            var threshold = Target.IsClosed() ? 0.9 : 0.45;
             SafeListBuilder<int> removeT = new SafeListBuilder<int>();
-            if (mode == InclusiveMode.Centroid)
-            {
-                gParallel.ForEach(Target.TriangleIndices(), (tid) =>
-                {
-                    Vector3d v = Target.GetTriCentroid(tid);
-                    if (spatial.WindingNumber(v) > threshold)
-                        removeT.SafeAdd(tid);
-                });
-            }
-            else
-            {
-                gParallel.ForEach(Target.TriangleIndices(), (tid) =>
-                {
-                    Vector3d v0 = new Vector3d();
-                    Vector3d v1 = new Vector3d();
-                    Vector3d v2 = new Vector3d();
-                    Target.GetTriVertices(tid, ref v0, ref v1, ref v2);
-
-                    if (spatial.WindingNumber(v0) > threshold
-                        || spatial.WindingNumber(v1) > threshold
-                        || spatial.WindingNumber(v2) > threshold)
-                        removeT.SafeAdd(tid);
-                });
-            }
-
+            gParallel.ForEach(Target.TriangleIndices(), (tid) => {
+                Vector3d v = Target.GetTriCentroid(tid);
+                if (spatial.WindingNumber(v) > threshold)
+                    removeT.SafeAdd(tid);
+            });
             MeshEditor.RemoveTriangles(Target, removeT.Result);
 
             // [RMS] construct set of on-cut vertices? This is not
