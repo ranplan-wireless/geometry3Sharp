@@ -65,7 +65,7 @@ namespace g3
         {
             DMeshAABBTree3 spatial = new DMeshAABBTree3(CutMesh, true);
             spatial.WindingNumber(Vector3d.Zero);
-            var threshold = Target.IsClosed() ? 0.9 : 0.45;
+            var threshold = CutMesh.IsClosed() ? 0.9 : 0.45;
             SafeListBuilder<int> removeT = new SafeListBuilder<int>();
             gParallel.ForEach(Target.TriangleIndices(), (tid) => {
                 Vector3d v = Target.GetTriCentroid(tid);
