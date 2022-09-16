@@ -18,16 +18,21 @@
     /// 
     /// 
     /// </summary>
-    internal struct Triangle
+    public struct Triangle
     {
         public const int InvalidMaterialID = -1;
         public const int InvalidGroupID = -1;
+        public const int InvalidObjectID = -1;
+        public const int InvalidMatFileID = -1;
 
         public Index3i vIndices;
         public Index3i vNormals;
         public Index3i vUVs;
+
         public int nMaterialID;
         public int nGroupID;
+        public int nObjectID;
+        public int nMatFileID;
 
         public void clear()
         {

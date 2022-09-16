@@ -5,59 +5,17 @@ using System.Linq;
 
 namespace g3
 {
-    public class OBJReader : IMeshReader
+    public class OBJReader : OBJParser, IMeshReader
     {
-        DVector<double> vPositions;
-        DVector<float> vNormals;
-        DVector<float> vUVs;
-        DVector<float> vColors;
-        DVector<Triangle> vTriangles;
-
         Dictionary<string, OBJMaterial> Materials;
-        Dictionary<int, string> UsedMaterials;
-
-        bool m_bOBJHasPerVertexColors;
-        int m_nUVComponents;
-
-        bool m_bOBJHasTriangleGroups;
-        int m_nSetInvalidGroupsTo;
-
-        private string[] splitDoubleSlash;
-        private char[] splitSlash;
-
-        int nWarningLevel = 0; // 0 == no diagnostics, 1 == basic, 2 == crazy
-        Dictionary<string, int> warningCount = new Dictionary<string, int>();
 
         public OBJReader()
         {
-            this.splitDoubleSlash = new string[] { "//" };
-            this.splitSlash = new char[] { '/' };
             MTLFileSearchPaths = new List<string>();
         }
 
         // you need to initialize this with paths if you want .MTL files to load
         public List<string> MTLFileSearchPaths { get; set; }
-
-        // connect to this to get warning messages
-        public event ParsingMessagesHandler warningEvent;
-
-        public bool HasPerVertexColors
-        {
-            get { return m_bOBJHasPerVertexColors; }
-        }
-        public int UVDimension
-        {
-            get { return m_nUVComponents; }
-        }
-
-        public bool HasTriangleGroups
-        {
-            get { return m_bOBJHasTriangleGroups; }
-        }
-
-        // if this is true, means during parsing we found vertices of faces that
-        //  had different indices for vtx/normal/uv
-        public bool HasComplexVertices { get; set; }
 
         public IOReadResult Read(BinaryReader reader, ReadOptions options, IMeshBuilder builder)
         {
@@ -67,21 +25,41 @@ namespace g3
         public IOReadResult Read(TextReader reader, ReadOptions options, IMeshBuilder builder)
         {
             Materials = new Dictionary<string, OBJMaterial>();
-            UsedMaterials = new Dictionary<int, string>();
             HasComplexVertices = false;
 
             if (nWarningLevel >= 1)
-                emit_warning("[OBJReader] starting parse");
-
-            var parseResult = ParseInput(reader, options);
+                emit_warning("[OBJReader] starting parse obj.");
+            var parseResult = ParseInput(reader);
             if (parseResult.code != IOCode.Ok)
                 return parseResult;
 
             if (nWarningLevel >= 1)
-                emit_warning("[OBJReader] completed parse. building.");
+                emit_warning("[OBJReader] completed parse obj.");
+
+            if (options.ReadMaterials && MTLFileSearchPaths.Count > 0 && materialTokens.Count > 0)
+            {
+                if (nWarningLevel >= 1)
+                    emit_warning("[OBJReader] starting parse mtl.");
+
+                foreach (var sMTLPathString in matFileTokens.ListName())
+                {
+                    var sFile = FindMTLFile(sMTLPathString);
+                    if (sFile != null)
+                    {
+                        var result = ReadMaterials(sFile);
+                        if (result.code != IOCode.Ok)
+                            emit_warning("error parsing " + sFile + " : " + result.message);
+                    }
+                    else
+                        emit_warning("material file " + sMTLPathString + " could not be found in material search paths");
+                }
+
+                if (nWarningLevel >= 1)
+                    emit_warning("[OBJReader] completed parse mtl.");
+            }
 
             var buildResult =
-                (UsedMaterials.Count > 1 || HasComplexVertices) ? BuildMeshes_ByMaterial(options, builder) : BuildMeshes_Simple(options, builder);
+                (Materials.Count > 1 || HasComplexVertices) ? BuildMeshes_ByMaterial(options, builder) : BuildMeshes_Simple(options, builder);
 
             if (nWarningLevel >= 1)
                 emit_warning("[OBJReader] build complete.");
@@ -186,11 +164,11 @@ namespace g3
             for (var k = 0; k < vTriangles.Length; ++k)
                 append_triangle(builder, k, mapV);
 
-            if (UsedMaterials.Count == 1)
+            if (materialTokens.Count == 1)
             {
                 // [RMS] should not be in here otherwise
-                var material_id = UsedMaterials.Keys.First();
-                var sMatName = UsedMaterials[material_id];
+                var material_id = materialTokens.ListID().First();
+                var sMatName = materialTokens[material_id];
                 var useMat = Materials[sMatName];
                 var matID = builder.BuildMaterial(useMat);
                 builder.AssignMaterial(matID, meshID);
@@ -210,14 +188,14 @@ namespace g3
             var bHaveColors = (vColors.Length > 0);
             var bHaveUVs = (vUVs.Length > 0);
 
-            var usedMaterialIDs = new List<int>(UsedMaterials.Keys);
+            var usedMaterialIDs = new List<int>(materialTokens.ListID());
             usedMaterialIDs.Add(Triangle.InvalidMaterialID);
             foreach (var material_id in usedMaterialIDs)
             {
                 var matID = Triangle.InvalidMaterialID;
                 if (material_id != Triangle.InvalidMaterialID)
                 {
-                    var sMatName = UsedMaterials[material_id];
+                    var sMatName = materialTokens[material_id];
                     var useMat = Materials[sMatName];
                     matID = builder.BuildMaterial(useMat);
                 }
@@ -264,297 +242,6 @@ namespace g3
             }
 
             return new IOReadResult(IOCode.Ok, "");
-        }
-
-        public IOReadResult ParseInput(TextReader reader, ReadOptions options)
-        {
-            vPositions = new DVector<double>();
-            vNormals = new DVector<float>();
-            vUVs = new DVector<float>();
-            vColors = new DVector<float>();
-            vTriangles = new DVector<Triangle>();
-
-            var bVerticesHaveColors = false;
-            var nMaxUVLength = 0;
-            OBJMaterial activeMaterial = null;
-
-            var GroupNames = new Dictionary<string, int>();
-            var nGroupCounter = 0;
-            var nActiveGroup = Triangle.InvalidGroupID;
-
-            var nLines = 0;
-            while (reader.Peek() >= 0)
-            {
-                var line = reader.ReadLine();
-                nLines++;
-                var tokens = line.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
-                if (tokens.Length == 0)
-                    continue;
-
-                // [RMS] this will hang VS on large models...
-                //if (nWarningLevel >= 2)
-                //    emit_warning("Parsing line " + line);
-                try
-                {
-                    if (tokens[0][0] == 'v')
-                    {
-                        if (tokens[0].Length == 1)
-                        {
-                            if (tokens.Length == 7)
-                            {
-                                vPositions.Add(Double.Parse(tokens[1]));
-                                vPositions.Add(Double.Parse(tokens[2]));
-                                vPositions.Add(Double.Parse(tokens[3]));
-
-                                vColors.Add(float.Parse(tokens[4]));
-                                vColors.Add(float.Parse(tokens[5]));
-                                vColors.Add(float.Parse(tokens[6]));
-                                bVerticesHaveColors = true;
-                            }
-                            else if (tokens.Length >= 4)
-                            {
-                                vPositions.Add(Double.Parse(tokens[1]));
-                                vPositions.Add(Double.Parse(tokens[2]));
-                                vPositions.Add(Double.Parse(tokens[3]));
-                            }
-
-                            if (tokens.Length != 4 && tokens.Length != 7)
-                                emit_warning("[OBJReader] vertex has unknown format: " + line);
-                        }
-                        else if (tokens[0][1] == 'n')
-                        {
-                            if (tokens.Length >= 4)
-                            {
-                                vNormals.Add(float.Parse(tokens[1]));
-                                vNormals.Add(float.Parse(tokens[2]));
-                                vNormals.Add(float.Parse(tokens[3]));
-                            }
-
-                            if (tokens.Length != 4)
-                                emit_warning("[OBJReader] normal has more than 3 coordinates: " + line);
-                        }
-                        else if (tokens[0][1] == 't')
-                        {
-                            if (tokens.Length >= 3)
-                            {
-                                vUVs.Add(float.Parse(tokens[1]));
-                                vUVs.Add(float.Parse(tokens[2]));
-                                nMaxUVLength = Math.Max(nMaxUVLength, tokens.Length);
-                            }
-
-                            if (tokens.Length != 3)
-                                emit_warning("[OBJReader] UV has unknown format: " + line);
-                        }
-                    }
-                    else if (tokens[0][0] == 'f')
-                    {
-                        if (tokens.Length < 4)
-                        {
-                            emit_warning("[OBJReader] degenerate face specified : " + line);
-                        }
-                        else if (tokens.Length == 4)
-                        {
-                            var tri = new Triangle();
-                            parse_triangle(tokens, ref tri);
-
-                            tri.nGroupID = nActiveGroup;
-
-                            if (activeMaterial != null)
-                            {
-                                tri.nMaterialID = activeMaterial.id;
-                                UsedMaterials[activeMaterial.id] = activeMaterial.name;
-                            }
-
-                            vTriangles.Add(tri);
-                            if (tri.is_complex())
-                                HasComplexVertices = true;
-                        }
-                        else
-                        {
-                            append_face(tokens, activeMaterial, nActiveGroup);
-                        }
-                    }
-                    else if (tokens[0][0] == 'g')
-                    {
-                        var sGroupName = (tokens.Length == 2) ? tokens[1] : line.Substring(line.IndexOf(tokens[1]));
-                        if (GroupNames.ContainsKey(sGroupName))
-                        {
-                            nActiveGroup = GroupNames[sGroupName];
-                        }
-                        else
-                        {
-                            nActiveGroup = nGroupCounter;
-                            GroupNames[sGroupName] = nGroupCounter++;
-                        }
-                    }
-                    else if (tokens[0][0] == 'o')
-                    {
-                        // TODO multi-object support
-                    }
-                    else if (tokens[0] == "mtllib" && options.ReadMaterials)
-                    {
-                        if (MTLFileSearchPaths.Count == 0)
-                            emit_warning("Materials requested but Material Search Paths not initialized!");
-                        var sMTLPathString = (tokens.Length == 2) ? tokens[1] : line.Substring(line.IndexOf(tokens[1]));
-                        var sFile = FindMTLFile(sMTLPathString);
-                        if (sFile != null)
-                        {
-                            var result = ReadMaterials(sFile);
-                            if (result.code != IOCode.Ok)
-                                emit_warning("error parsing " + sFile + " : " + result.message);
-                        }
-                        else
-                            emit_warning("material file " + sMTLPathString + " could not be found in material search paths");
-                    }
-                    else if (tokens[0] == "usemtl" && options.ReadMaterials)
-                    {
-                        activeMaterial = find_material(tokens[1]);
-                    }
-                }
-                catch (Exception e)
-                {
-                    emit_warning("error parsing line " + nLines.ToString() + ": " + line + ", exception " + e.Message);
-                }
-            }
-
-            m_bOBJHasPerVertexColors = bVerticesHaveColors;
-            m_bOBJHasTriangleGroups = (nActiveGroup != Triangle.InvalidGroupID);
-            m_nSetInvalidGroupsTo = nGroupCounter++;
-            m_nUVComponents = nMaxUVLength;
-
-            return new IOReadResult(IOCode.Ok, "");
-        }
-
-        private int parse_v(string sToken)
-        {
-            var vi = int.Parse(sToken);
-            if (vi < 0)
-                vi = (vPositions.Length / 3) + vi + 1;
-            return vi;
-        }
-
-        private int parse_n(string sToken)
-        {
-            var vi = int.Parse(sToken);
-            if (vi < 0)
-                vi = (vNormals.Length / 3) + vi + 1;
-            return vi;
-        }
-
-        private int parse_u(string sToken)
-        {
-            var vi = int.Parse(sToken);
-            if (vi < 0)
-                vi = (vUVs.Length / 2) + vi + 1;
-            return vi;
-        }
-
-        private void append_face(string[] tokens, OBJMaterial activeMaterial, int nActiveGroup)
-        {
-            var nMode = 0;
-            if (tokens[1].IndexOf("//") != -1)
-                nMode = 1;
-            else if (tokens[1].IndexOf('/') != -1)
-                nMode = 2;
-
-            var t = new Triangle();
-            t.clear();
-            for (var ti = 0; ti < tokens.Length - 1; ++ti)
-            {
-                var j = (ti < 3) ? ti : 2;
-                if (ti >= 3)
-                    t.move_vertex(2, 1);
-
-                // parse next vertex
-                if (nMode == 0)
-                {
-                    // "f v1 v2 v3"
-                    t.set_vertex(j, parse_v(tokens[ti + 1]));
-                }
-                else if (nMode == 1)
-                {
-                    // "f v1//vn1 v2//vn2 v3//vn3"
-                    var parts = tokens[ti + 1].Split(this.splitDoubleSlash, StringSplitOptions.RemoveEmptyEntries);
-                    t.set_vertex(j, parse_v(parts[0]), parse_n(parts[1]));
-                }
-                else if (nMode == 2)
-                {
-                    var parts = tokens[ti + 1].Split(this.splitSlash, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length == 2)
-                    {
-                        // "f v1/vt1 v2/vt2 v3/vt3"
-                        t.set_vertex(j, parse_v(parts[0]), -1, parse_u(parts[1]));
-                    }
-                    else if (parts.Length == 3)
-                    {
-                        // "f v1/vt1/vn1 v2/vt2/vn2 v3/vt3/vn3"
-                        t.set_vertex(j, parse_v(parts[0]), parse_n(parts[2]), parse_u(parts[1]));
-                    }
-                    else
-                    {
-                        emit_warning("parse_triangle unexpected face component " + tokens[j]);
-                    }
-                }
-
-                // do append
-                if (ti >= 2)
-                {
-                    if (activeMaterial != null)
-                    {
-                        t.nMaterialID = activeMaterial.id;
-                        UsedMaterials[activeMaterial.id] = activeMaterial.name;
-                    }
-
-                    t.nGroupID = nActiveGroup;
-                    vTriangles.Add(t);
-                    if (t.is_complex())
-                        HasComplexVertices = true;
-                }
-            }
-        }
-
-        private void parse_triangle(string[] tokens, ref Triangle t)
-        {
-            var nMode = 0;
-            if (tokens[1].IndexOf("//") != -1)
-                nMode = 1;
-            else if (tokens[1].IndexOf('/') != -1)
-                nMode = 2;
-
-            t.clear();
-
-            for (var j = 0; j < 3; ++j)
-            {
-                if (nMode == 0)
-                {
-                    // "f v1 v2 v3"
-                    t.set_vertex(j, parse_v(tokens[j + 1]));
-                }
-                else if (nMode == 1)
-                {
-                    // "f v1//vn1 v2//vn2 v3//vn3"
-                    var parts = tokens[j + 1].Split(this.splitDoubleSlash, StringSplitOptions.RemoveEmptyEntries);
-                    t.set_vertex(j, parse_v(parts[0]), parse_n(parts[1]));
-                }
-                else if (nMode == 2)
-                {
-                    var parts = tokens[j + 1].Split(this.splitSlash, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length == 2)
-                    {
-                        // "f v1/vt1 v2/vt2 v3/vt3"
-                        t.set_vertex(j, parse_v(parts[0]), -1, parse_u(parts[1]));
-                    }
-                    else if (parts.Length == 3)
-                    {
-                        // "f v1/vt1/vn1 v2/vt2/vn2 v3/vt3/vn3"
-                        t.set_vertex(j, parse_v(parts[0]), parse_n(parts[2]), parse_u(parts[1]));
-                    }
-                    else
-                    {
-                        emit_warning("parse_triangle unexpected face component " + tokens[j]);
-                    }
-                }
-            }
         }
 
         string FindMTLFile(string sMTLFilePath)
@@ -755,22 +442,6 @@ namespace g3
 
             emit_warning("unknown material " + sName + " referenced");
             return null;
-        }
-
-        private void emit_warning(string sMessage)
-        {
-            var sPrefix = sMessage.Substring(0, 15);
-            var nCount = warningCount.ContainsKey(sPrefix) ? warningCount[sPrefix] : 0;
-            nCount++;
-            warningCount[sPrefix] = nCount;
-            if (nCount > 10)
-                return;
-            else if (nCount == 10)
-                sMessage += " (additional message surpressed)";
-
-            var e = warningEvent;
-            if (e != null)
-                e(sMessage, null);
         }
     }
 }
