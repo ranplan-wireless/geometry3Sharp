@@ -5,9 +5,10 @@ using System.Linq;
 
 namespace g3
 {
+    // ReSharper disable once InconsistentNaming
     public class OBJReader : OBJParser, IMeshReader
     {
-        Dictionary<string, OBJMaterial> Materials;
+        private Dictionary<string, OBJMaterial> _materials;
 
         public OBJReader()
         {
@@ -24,7 +25,7 @@ namespace g3
 
         public IOReadResult Read(TextReader reader, ReadOptions options, IMeshBuilder builder)
         {
-            Materials = new Dictionary<string, OBJMaterial>();
+            _materials = new Dictionary<string, OBJMaterial>();
             HasComplexVertices = false;
 
             if (nWarningLevel >= 1)
@@ -46,9 +47,22 @@ namespace g3
                     var sFile = FindMTLFile(sMTLPathString);
                     if (sFile != null)
                     {
-                        var result = ReadMaterials(sFile);
+                        var mtlReader = new MTLReader(this);
+                        var result = mtlReader.Read(sFile);
                         if (result.code != IOCode.Ok)
                             emit_warning("error parsing " + sFile + " : " + result.message);
+                        else
+                        {
+                            foreach (var curMaterial in mtlReader.Materials)
+                            {
+                                if (_materials.ContainsKey(curMaterial.name))
+                                    emit_warning("Material file " + sFile + " / material " + curMaterial.name + " : already exists in Material set. Replacing.");
+                                if (nWarningLevel >= 1)
+                                    emit_warning("[OBJReader] parsing material " + curMaterial.name);
+
+                                _materials[curMaterial.name] = curMaterial;
+                            }
+                        }
                     }
                     else
                         emit_warning("material file " + sMTLPathString + " could not be found in material search paths");
@@ -58,8 +72,7 @@ namespace g3
                     emit_warning("[OBJReader] completed parse mtl.");
             }
 
-            var buildResult =
-                (Materials.Count > 1 || HasComplexVertices) ? BuildMeshes_ByMaterial(options, builder) : BuildMeshes_Simple(options, builder);
+            var buildResult = (_materials.Count > 1 || HasComplexVertices) ? BuildMeshes_ByMaterial(builder) : BuildMeshes_Simple(builder);
 
             if (nWarningLevel >= 1)
                 emit_warning("[OBJReader] build complete.");
@@ -70,7 +83,7 @@ namespace g3
             return new IOReadResult(IOCode.Ok, "");
         }
 
-        int append_vertex(IMeshBuilder builder, Index3i vertIdx, bool bHaveNormals, bool bHaveColors, bool bHaveUVs)
+        private int append_vertex(IMeshBuilder builder, Index3i vertIdx, bool bHaveNormals, bool bHaveColors, bool bHaveUVs)
         {
             var vi = 3 * vertIdx.a;
             if (vertIdx.a < 0 || vertIdx.a >= vPositions.Length / 3)
@@ -108,7 +121,7 @@ namespace g3
             return builder.AppendVertex(vinfo);
         }
 
-        int append_triangle(IMeshBuilder builder, int nTri, int[] mapV)
+        private int append_triangle(IMeshBuilder builder, int nTri, int[] mapV)
         {
             var t = vTriangles[nTri];
             var v0 = mapV[t.vIndices[0] - 1];
@@ -125,7 +138,7 @@ namespace g3
             return builder.AppendTriangle(v0, v1, v2, gid);
         }
 
-        int append_triangle(IMeshBuilder builder, Triangle t)
+        private int append_triangle(IMeshBuilder builder, Triangle t)
         {
             if (t.vIndices[0] < 0 || t.vIndices[1] < 0 || t.vIndices[2] < 0)
             {
@@ -138,7 +151,7 @@ namespace g3
             return builder.AppendTriangle(t.vIndices[0], t.vIndices[1], t.vIndices[2], gid);
         }
 
-        IOReadResult BuildMeshes_Simple(ReadOptions options, IMeshBuilder builder)
+        private IOReadResult BuildMeshes_Simple(IMeshBuilder builder)
         {
             if (vPositions.Length == 0)
                 return new IOReadResult(IOCode.GarbageDataError, "No vertices in file");
@@ -169,7 +182,7 @@ namespace g3
                 // [RMS] should not be in here otherwise
                 var material_id = materialTokens.ListID().First();
                 var sMatName = materialTokens[material_id];
-                var useMat = Materials[sMatName];
+                var useMat = _materials[sMatName];
                 var matID = builder.BuildMaterial(useMat);
                 builder.AssignMaterial(matID, meshID);
             }
@@ -177,7 +190,7 @@ namespace g3
             return new IOReadResult(IOCode.Ok, "");
         }
 
-        IOReadResult BuildMeshes_ByMaterial(ReadOptions options, IMeshBuilder builder)
+        private IOReadResult BuildMeshes_ByMaterial(IMeshBuilder builder)
         {
             if (vPositions.Length == 0)
                 return new IOReadResult(IOCode.GarbageDataError, "No vertices in file");
@@ -196,7 +209,7 @@ namespace g3
                 if (material_id != Triangle.InvalidMaterialID)
                 {
                     var sMatName = materialTokens[material_id];
-                    var useMat = Materials[sMatName];
+                    var useMat = _materials[sMatName];
                     matID = builder.BuildMaterial(useMat);
                 }
 
@@ -244,7 +257,7 @@ namespace g3
             return new IOReadResult(IOCode.Ok, "");
         }
 
-        string FindMTLFile(string sMTLFilePath)
+        private string FindMTLFile(string sMTLFilePath)
         {
             foreach (var sPath in MTLFileSearchPaths)
             {
@@ -253,194 +266,6 @@ namespace g3
                     return sFullPath;
             }
 
-            return null;
-        }
-
-        public IOReadResult ReadMaterials(string sPath)
-        {
-            if (nWarningLevel >= 1)
-                emit_warning("[OBJReader] ReadMaterials " + sPath);
-
-            StreamReader reader;
-            try
-            {
-                reader = new StreamReader(sPath);
-                if (reader.EndOfStream)
-                    return new IOReadResult(IOCode.FileAccessError, "");
-            }
-            catch
-            {
-                return new IOReadResult(IOCode.FileAccessError, "");
-            }
-
-            OBJMaterial curMaterial = null;
-
-            while (reader.Peek() >= 0)
-            {
-                var line = reader.ReadLine();
-                var tokens = line.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
-                if (tokens.Length == 0)
-                    continue;
-
-                if (tokens[0][0] == '#')
-                {
-                    continue;
-                }
-                else if (tokens[0] == "newmtl")
-                {
-                    curMaterial = new OBJMaterial();
-                    curMaterial.name = tokens[1];
-                    curMaterial.id = Materials.Count;
-
-                    if (Materials.ContainsKey(curMaterial.name))
-                        emit_warning("Material file " + sPath + " / material " + curMaterial.name + " : already exists in Material set. Replacing.");
-                    if (nWarningLevel >= 1)
-                        emit_warning("[OBJReader] parsing material " + curMaterial.name);
-
-                    Materials[curMaterial.name] = curMaterial;
-                }
-                else if (tokens[0] == "Ka")
-                {
-                    if (curMaterial != null) curMaterial.Ka = parse_mtl_color(tokens);
-                }
-                else if (tokens[0] == "Kd")
-                {
-                    if (curMaterial != null) curMaterial.Kd = parse_mtl_color(tokens);
-                }
-                else if (tokens[0] == "Ks")
-                {
-                    if (curMaterial != null) curMaterial.Ks = parse_mtl_color(tokens);
-                }
-                else if (tokens[0] == "Ke")
-                {
-                    if (curMaterial != null) curMaterial.Ke = parse_mtl_color(tokens);
-                }
-                else if (tokens[0] == "Tf")
-                {
-                    if (curMaterial != null) curMaterial.Tf = parse_mtl_color(tokens);
-                }
-                else if (tokens[0] == "illum")
-                {
-                    if (curMaterial != null) curMaterial.illum = int.Parse(tokens[1]);
-                }
-                else if (tokens[0] == "d")
-                {
-                    if (curMaterial != null) curMaterial.d = Single.Parse(tokens[1]);
-                }
-                else if (tokens[0] == "Tr")
-                {
-                    // alternate to d/alpha, [Tr]ansparency is 1-d
-                    if (curMaterial != null) curMaterial.d = 1.0f - Single.Parse(tokens[1]);
-                }
-                else if (tokens[0] == "Ns")
-                {
-                    if (curMaterial != null) curMaterial.Ns = Single.Parse(tokens[1]);
-                }
-                else if (tokens[0] == "sharpness")
-                {
-                    if (curMaterial != null) curMaterial.sharpness = Single.Parse(tokens[1]);
-                }
-                else if (tokens[0] == "Ni")
-                {
-                    if (curMaterial != null) curMaterial.Ni = Single.Parse(tokens[1]);
-                }
-                else if (tokens[0] == "map_Ka")
-                {
-                    if (curMaterial != null) curMaterial.map_Ka = parse_mtl_path(line, tokens);
-                }
-                else if (tokens[0] == "map_Kd")
-                {
-                    if (curMaterial != null) curMaterial.map_Kd = parse_mtl_path(line, tokens);
-                }
-                else if (tokens[0] == "map_Ks")
-                {
-                    if (curMaterial != null) curMaterial.map_Ks = parse_mtl_path(line, tokens);
-                }
-                else if (tokens[0] == "map_Ke")
-                {
-                    if (curMaterial != null) curMaterial.map_Ke = parse_mtl_path(line, tokens);
-                }
-                else if (tokens[0] == "map_d")
-                {
-                    if (curMaterial != null) curMaterial.map_d = parse_mtl_path(line, tokens);
-                }
-                else if (tokens[0] == "map_Ns")
-                {
-                    if (curMaterial != null) curMaterial.map_Ns = parse_mtl_path(line, tokens);
-                }
-                else if (tokens[0] == "bump" || tokens[0] == "map_bump")
-                {
-                    if (curMaterial != null) curMaterial.bump = parse_mtl_path(line, tokens);
-                }
-                else if (tokens[0] == "disp")
-                {
-                    if (curMaterial != null) curMaterial.disp = parse_mtl_path(line, tokens);
-                }
-                else if (tokens[0] == "decal")
-                {
-                    if (curMaterial != null) curMaterial.decal = parse_mtl_path(line, tokens);
-                }
-                else if (tokens[0] == "refl")
-                {
-                    if (curMaterial != null) curMaterial.refl = parse_mtl_path(line, tokens);
-                }
-                else
-                {
-                    emit_warning("unknown material command " + tokens[0]);
-                }
-            }
-
-            if (nWarningLevel >= 1)
-                emit_warning("[OBJReader] ReadMaterials completed");
-
-            return new IOReadResult(IOCode.Ok, "ok");
-        }
-
-        private string parse_mtl_path(string line, string[] tokens)
-        {
-            if (tokens.Length == 2)
-                return tokens[1];
-            else
-                return line.Substring(line.IndexOf(tokens[1]));
-        }
-
-        private Vector3f parse_mtl_color(string[] tokens)
-        {
-            if (tokens[1] == "spectral")
-            {
-                emit_warning("OBJReader::parse_material_color : spectral color not supported!");
-                return new Vector3f(1, 0, 0);
-            }
-            else if (tokens[1] == "xyz")
-            {
-                emit_warning("OBJReader::parse_material_color : xyz color not supported!");
-                return new Vector3f(1, 0, 0);
-            }
-            else
-            {
-                var r = float.Parse(tokens[1]);
-                var g = float.Parse(tokens[2]);
-                var b = float.Parse(tokens[3]);
-                return new Vector3f(r, g, b);
-            }
-        }
-
-        private OBJMaterial find_material(string sName)
-        {
-            if (Materials.ContainsKey(sName))
-                return Materials[sName];
-
-            // try case-insensitive search
-            try
-            {
-                return Materials.First(x => String.Equals(x.Key, sName, StringComparison.OrdinalIgnoreCase)).Value;
-            }
-            catch
-            {
-                // didn't work
-            }
-
-            emit_warning("unknown material " + sName + " referenced");
             return null;
         }
     }
