@@ -67,15 +67,6 @@ namespace g3
             return index;
         }
 
-
-        public void SetActiveMesh(int id)
-        {
-            if (id >= 0 && id < Meshes.Count)
-                nActiveMesh = id;
-            else
-                throw new ArgumentOutOfRangeException("active mesh id is out of range");
-        }
-
         public int AppendTriangle(int i, int j, int k)
         {
             return AppendTriangle(i, j, k, -1);

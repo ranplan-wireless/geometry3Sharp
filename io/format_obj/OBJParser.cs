@@ -5,25 +5,25 @@ namespace g3
 {
     public class OBJParser : MeshIOLogger
     {
-        protected DVector<double> vPositions { get; private set; }
-        protected DVector<float> vNormals { get; private set; }
-        protected DVector<float> vUVs { get; private set; }
-        protected DVector<float> vColors { get; private set; }
-        protected DVector<Triangle> vTriangles { get; private set; }
+        private static readonly string[] splitDoubleSlash = new string[] { "//" };
+        private static readonly char[] splitSlash = new char[] { '/' };
 
-        protected Tokens matFileTokens { get; private set; }
-        protected Tokens objectTokens { get; private set; }
-        protected Tokens groupTokens { get; private set; }
-        protected Tokens materialTokens { get; private set; }
+        protected DVector<double> VertexPositions { get; private set; }
+        protected DVector<float> VertexNormals { get; private set; }
+        protected DVector<float> VertexUVs { get; private set; }
+        protected DVector<float> VertexColors { get; private set; }
+        protected DVector<Triangle> Triangles { get; private set; }
+
+        protected Tokens MatFileTokens { get; private set; }
+        protected Tokens ObjectTokens { get; private set; }
+        protected Tokens GroupTokens { get; private set; }
+        protected Tokens MaterialTokens { get; private set; }
 
         bool m_bOBJHasPerVertexColors;
         int m_nUVComponents;
 
-        protected bool m_bOBJHasTriangleGroups { get; private set; }
-        protected int m_nSetInvalidGroupsTo { get; private set; }
-
-        private static readonly string[] splitDoubleSlash = new string[] { "//" };
-        private static readonly char[] splitSlash = new char[] { '/' };
+        private bool m_bOBJHasTriangleGroups;
+        private int m_nSetInvalidGroupsTo;
 
         public bool HasPerVertexColors
         {
@@ -34,10 +34,8 @@ namespace g3
             get { return m_nUVComponents; }
         }
 
-        public bool HasTriangleGroups
-        {
-            get { return m_bOBJHasTriangleGroups; }
-        }
+        public bool HasTriangleGroups => m_bOBJHasTriangleGroups;
+        public int SetInvalidGroupsTo => m_nSetInvalidGroupsTo;
 
         // if this is true, means during parsing we found vertices of faces that
         //  had different indices for vtx/normal/uv
@@ -45,19 +43,20 @@ namespace g3
 
         public IOReadResult ParseInput(TextReader reader)
         {
-            vPositions = new DVector<double>();
-            vNormals = new DVector<float>();
-            vUVs = new DVector<float>();
-            vColors = new DVector<float>();
-            vTriangles = new DVector<Triangle>();
+            VertexPositions = new DVector<double>();
+            VertexNormals = new DVector<float>();
+            VertexUVs = new DVector<float>();
+            VertexColors = new DVector<float>();
+            Triangles = new DVector<Triangle>();
 
-            matFileTokens = new Tokens(Triangle.InvalidMatFileID);
-            objectTokens = new Tokens(Triangle.InvalidObjectID);
-            groupTokens = new Tokens(Triangle.InvalidGroupID);
-            materialTokens = new Tokens(Triangle.InvalidMaterialID);
+            MatFileTokens = new Tokens(Triangle.InvalidMatFileID);
+            ObjectTokens = new Tokens(Triangle.InvalidObjectID);
+            GroupTokens = new Tokens(Triangle.InvalidGroupID);
+            MaterialTokens = new Tokens(Triangle.InvalidMaterialID);
 
             var bVerticesHaveColors = false;
             var nMaxUVLength = 0;
+            HasComplexVertices = false;
 
             var nLines = 0;
             while (reader.Peek() >= 0)
@@ -79,20 +78,20 @@ namespace g3
                         {
                             if (tokens.Length == 7)
                             {
-                                vPositions.Add(Double.Parse(tokens[1]));
-                                vPositions.Add(Double.Parse(tokens[2]));
-                                vPositions.Add(Double.Parse(tokens[3]));
+                                VertexPositions.Add(Double.Parse(tokens[1]));
+                                VertexPositions.Add(Double.Parse(tokens[2]));
+                                VertexPositions.Add(Double.Parse(tokens[3]));
 
-                                vColors.Add(float.Parse(tokens[4]));
-                                vColors.Add(float.Parse(tokens[5]));
-                                vColors.Add(float.Parse(tokens[6]));
+                                VertexColors.Add(float.Parse(tokens[4]));
+                                VertexColors.Add(float.Parse(tokens[5]));
+                                VertexColors.Add(float.Parse(tokens[6]));
                                 bVerticesHaveColors = true;
                             }
                             else if (tokens.Length >= 4)
                             {
-                                vPositions.Add(Double.Parse(tokens[1]));
-                                vPositions.Add(Double.Parse(tokens[2]));
-                                vPositions.Add(Double.Parse(tokens[3]));
+                                VertexPositions.Add(Double.Parse(tokens[1]));
+                                VertexPositions.Add(Double.Parse(tokens[2]));
+                                VertexPositions.Add(Double.Parse(tokens[3]));
                             }
 
                             if (tokens.Length != 4 && tokens.Length != 7)
@@ -102,9 +101,9 @@ namespace g3
                         {
                             if (tokens.Length >= 4)
                             {
-                                vNormals.Add(float.Parse(tokens[1]));
-                                vNormals.Add(float.Parse(tokens[2]));
-                                vNormals.Add(float.Parse(tokens[3]));
+                                VertexNormals.Add(float.Parse(tokens[1]));
+                                VertexNormals.Add(float.Parse(tokens[2]));
+                                VertexNormals.Add(float.Parse(tokens[3]));
                             }
 
                             if (tokens.Length != 4)
@@ -114,8 +113,8 @@ namespace g3
                         {
                             if (tokens.Length >= 3)
                             {
-                                vUVs.Add(float.Parse(tokens[1]));
-                                vUVs.Add(float.Parse(tokens[2]));
+                                VertexUVs.Add(float.Parse(tokens[1]));
+                                VertexUVs.Add(float.Parse(tokens[2]));
                                 nMaxUVLength = Math.Max(nMaxUVLength, tokens.Length);
                             }
 
@@ -134,12 +133,12 @@ namespace g3
                             var tri = new Triangle();
                             parse_triangle(tokens, ref tri);
 
-                            tri.nMatFileID = matFileTokens.ActiveID;
-                            tri.nObjectID = objectTokens.ActiveID;
-                            tri.nGroupID = groupTokens.ActiveID;
-                            tri.nMaterialID = materialTokens.ActiveID;
+                            tri.nMatFileID = MatFileTokens.ActiveID;
+                            tri.nObjectID = ObjectTokens.ActiveID;
+                            tri.nGroupID = GroupTokens.ActiveID;
+                            tri.nMaterialID = MaterialTokens.ActiveID;
 
-                            vTriangles.Add(tri);
+                            Triangles.Add(tri);
                             if (tri.is_complex())
                                 HasComplexVertices = true;
                         }
@@ -150,19 +149,19 @@ namespace g3
                     }
                     else if (tokens[0][0] == 'g')
                     {
-                        groupTokens.Append(line, tokens);
+                        GroupTokens.Append(line, tokens);
                     }
                     else if (tokens[0][0] == 'o')
                     {
-                        objectTokens.Append(line, tokens);
+                        ObjectTokens.Append(line, tokens);
                     }
                     else if (tokens[0] == "mtllib")
                     {
-                        matFileTokens.Append(line, tokens);
+                        MatFileTokens.Append(line, tokens);
                     }
                     else if (tokens[0] == "usemtl")
                     {
-                        materialTokens.Append(line, tokens);
+                        MaterialTokens.Append(line, tokens);
                     }
                 }
                 catch (Exception e)
@@ -172,8 +171,8 @@ namespace g3
             }
 
             m_bOBJHasPerVertexColors = bVerticesHaveColors;
-            m_bOBJHasTriangleGroups = (groupTokens.ActiveID != Triangle.InvalidGroupID);
-            m_nSetInvalidGroupsTo = groupTokens.Counter++;
+            m_bOBJHasTriangleGroups = (GroupTokens.ActiveID != Triangle.InvalidGroupID);
+            m_nSetInvalidGroupsTo = GroupTokens.Counter++;
             m_nUVComponents = nMaxUVLength;
 
             return new IOReadResult(IOCode.Ok, "");
@@ -183,7 +182,7 @@ namespace g3
         {
             var vi = int.Parse(sToken);
             if (vi < 0)
-                vi = (vPositions.Length / 3) + vi + 1;
+                vi = (VertexPositions.Length / 3) + vi + 1;
             return vi;
         }
 
@@ -191,7 +190,7 @@ namespace g3
         {
             var vi = int.Parse(sToken);
             if (vi < 0)
-                vi = (vNormals.Length / 3) + vi + 1;
+                vi = (VertexNormals.Length / 3) + vi + 1;
             return vi;
         }
 
@@ -199,7 +198,7 @@ namespace g3
         {
             var vi = int.Parse(sToken);
             if (vi < 0)
-                vi = (vUVs.Length / 2) + vi + 1;
+                vi = (VertexUVs.Length / 2) + vi + 1;
             return vi;
         }
 
@@ -253,11 +252,11 @@ namespace g3
                 // do append
                 if (ti >= 2)
                 {
-                    t.nMatFileID = matFileTokens.ActiveID;
-                    t.nObjectID = objectTokens.ActiveID;
-                    t.nGroupID = groupTokens.ActiveID;
-                    t.nMaterialID = materialTokens.ActiveID;
-                    vTriangles.Add(t);
+                    t.nMatFileID = MatFileTokens.ActiveID;
+                    t.nObjectID = ObjectTokens.ActiveID;
+                    t.nGroupID = GroupTokens.ActiveID;
+                    t.nMaterialID = MaterialTokens.ActiveID;
+                    Triangles.Add(t);
                     if (t.is_complex())
                         HasComplexVertices = true;
                 }

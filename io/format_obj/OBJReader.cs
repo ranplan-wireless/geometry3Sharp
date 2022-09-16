@@ -26,7 +26,6 @@ namespace g3
         public IOReadResult Read(TextReader reader, ReadOptions options, IMeshBuilder builder)
         {
             _materials = new Dictionary<string, OBJMaterial>();
-            HasComplexVertices = false;
 
             if (nWarningLevel >= 1)
                 emit_warning("[OBJReader] starting parse obj.");
@@ -37,12 +36,12 @@ namespace g3
             if (nWarningLevel >= 1)
                 emit_warning("[OBJReader] completed parse obj.");
 
-            if (options.ReadMaterials && MTLFileSearchPaths.Count > 0 && materialTokens.Count > 0)
+            if (options.ReadMaterials && MTLFileSearchPaths.Count > 0 && MaterialTokens.Count > 0)
             {
                 if (nWarningLevel >= 1)
                     emit_warning("[OBJReader] starting parse mtl.");
 
-                foreach (var sMTLPathString in matFileTokens.ListName())
+                foreach (var sMTLPathString in MatFileTokens.ListName())
                 {
                     var sFile = FindMTLFile(sMTLPathString);
                     if (sFile != null)
@@ -86,36 +85,36 @@ namespace g3
         private int append_vertex(IMeshBuilder builder, Index3i vertIdx, bool bHaveNormals, bool bHaveColors, bool bHaveUVs)
         {
             var vi = 3 * vertIdx.a;
-            if (vertIdx.a < 0 || vertIdx.a >= vPositions.Length / 3)
+            if (vertIdx.a < 0 || vertIdx.a >= VertexPositions.Length / 3)
             {
                 emit_warning("[OBJReader] append_vertex() referencing invalid vertex " + vertIdx.a.ToString());
                 return -1;
             }
 
             if (bHaveNormals == false && bHaveColors == false && bHaveUVs == false)
-                return builder.AppendVertex(vPositions[vi], vPositions[vi + 1], vPositions[vi + 2]);
+                return builder.AppendVertex(VertexPositions[vi], VertexPositions[vi + 1], VertexPositions[vi + 2]);
 
             var vinfo = new NewVertexInfo();
             vinfo.bHaveC = vinfo.bHaveN = vinfo.bHaveUV = false;
-            vinfo.v = new Vector3d(vPositions[vi], vPositions[vi + 1], vPositions[vi + 2]);
+            vinfo.v = new Vector3d(VertexPositions[vi], VertexPositions[vi + 1], VertexPositions[vi + 2]);
             if (bHaveNormals)
             {
                 vinfo.bHaveN = true;
                 var ni = 3 * vertIdx.b;
-                vinfo.n = new Vector3f(vNormals[ni], vNormals[ni + 1], vNormals[ni + 2]);
+                vinfo.n = new Vector3f(VertexNormals[ni], VertexNormals[ni + 1], VertexNormals[ni + 2]);
             }
 
             if (bHaveColors)
             {
                 vinfo.bHaveC = true;
-                vinfo.c = new Vector3f(vColors[vi], vColors[vi + 1], vColors[vi + 2]);
+                vinfo.c = new Vector3f(VertexColors[vi], VertexColors[vi + 1], VertexColors[vi + 2]);
             }
 
             if (bHaveUVs)
             {
                 vinfo.bHaveUV = true;
                 var ui = 2 * vertIdx.c;
-                vinfo.uv = new Vector2f(vUVs[ui], vUVs[ui + 1]);
+                vinfo.uv = new Vector2f(VertexUVs[ui], VertexUVs[ui + 1]);
             }
 
             return builder.AppendVertex(vinfo);
@@ -123,7 +122,7 @@ namespace g3
 
         private int append_triangle(IMeshBuilder builder, int nTri, int[] mapV)
         {
-            var t = vTriangles[nTri];
+            var t = Triangles[nTri];
             var v0 = mapV[t.vIndices[0] - 1];
             var v1 = mapV[t.vIndices[1] - 1];
             var v2 = mapV[t.vIndices[2] - 1];
@@ -134,7 +133,7 @@ namespace g3
                 return -1;
             }
 
-            var gid = (vTriangles[nTri].nGroupID == Triangle.InvalidGroupID) ? m_nSetInvalidGroupsTo : vTriangles[nTri].nGroupID;
+            var gid = (Triangles[nTri].nGroupID == Triangle.InvalidGroupID) ? SetInvalidGroupsTo : Triangles[nTri].nGroupID;
             return builder.AppendTriangle(v0, v1, v2, gid);
         }
 
@@ -147,26 +146,26 @@ namespace g3
                 return -1;
             }
 
-            var gid = (t.nGroupID == Triangle.InvalidGroupID) ? m_nSetInvalidGroupsTo : t.nGroupID;
+            var gid = (t.nGroupID == Triangle.InvalidGroupID) ? SetInvalidGroupsTo : t.nGroupID;
             return builder.AppendTriangle(t.vIndices[0], t.vIndices[1], t.vIndices[2], gid);
         }
 
         private IOReadResult BuildMeshes_Simple(IMeshBuilder builder)
         {
-            if (vPositions.Length == 0)
+            if (VertexPositions.Length == 0)
                 return new IOReadResult(IOCode.GarbageDataError, "No vertices in file");
-            if (vTriangles.Length == 0)
+            if (Triangles.Length == 0)
                 return new IOReadResult(IOCode.GarbageDataError, "No triangles in file");
 
             // [TODO] support non-per-vertex normals/colors
-            var bHaveNormals = (vNormals.Length == vPositions.Length);
-            var bHaveColors = (vColors.Length == vPositions.Length);
-            var bHaveUVs = (vUVs.Length / 2 == vPositions.Length / 3);
+            var bHaveNormals = (VertexNormals.Length == VertexPositions.Length);
+            var bHaveColors = (VertexColors.Length == VertexPositions.Length);
+            var bHaveUVs = (VertexUVs.Length / 2 == VertexPositions.Length / 3);
 
-            var nVertices = vPositions.Length / 3;
+            var nVertices = VertexPositions.Length / 3;
             var mapV = new int[nVertices];
 
-            var meshID = builder.AppendNewMesh(bHaveNormals, bHaveColors, bHaveUVs, m_bOBJHasTriangleGroups);
+            var meshID = builder.AppendNewMesh(bHaveNormals, bHaveColors, bHaveUVs, HasTriangleGroups);
             for (var k = 0; k < nVertices; ++k)
             {
                 var vk = new Index3i(k, k, k);
@@ -174,14 +173,14 @@ namespace g3
             }
 
             // [TODO] this doesn't handle missing vertices...
-            for (var k = 0; k < vTriangles.Length; ++k)
+            for (var k = 0; k < Triangles.Length; ++k)
                 append_triangle(builder, k, mapV);
 
-            if (materialTokens.Count == 1)
+            if (MaterialTokens.Count == 1)
             {
                 // [RMS] should not be in here otherwise
-                var material_id = materialTokens.ListID().First();
-                var sMatName = materialTokens[material_id];
+                var material_id = MaterialTokens.ListID().First();
+                var sMatName = MaterialTokens.GetName(material_id);
                 var useMat = _materials[sMatName];
                 var matID = builder.BuildMaterial(useMat);
                 builder.AssignMaterial(matID, meshID);
@@ -192,23 +191,23 @@ namespace g3
 
         private IOReadResult BuildMeshes_ByMaterial(IMeshBuilder builder)
         {
-            if (vPositions.Length == 0)
+            if (VertexPositions.Length == 0)
                 return new IOReadResult(IOCode.GarbageDataError, "No vertices in file");
-            if (vTriangles.Length == 0)
+            if (Triangles.Length == 0)
                 return new IOReadResult(IOCode.GarbageDataError, "No triangles in file");
 
-            var bHaveNormals = (vNormals.Length > 0);
-            var bHaveColors = (vColors.Length > 0);
-            var bHaveUVs = (vUVs.Length > 0);
+            var bHaveNormals = (VertexNormals.Length > 0);
+            var bHaveColors = (VertexColors.Length > 0);
+            var bHaveUVs = (VertexUVs.Length > 0);
 
-            var usedMaterialIDs = new List<int>(materialTokens.ListID());
+            var usedMaterialIDs = new List<int>(MaterialTokens.ListID());
             usedMaterialIDs.Add(Triangle.InvalidMaterialID);
             foreach (var material_id in usedMaterialIDs)
             {
                 var matID = Triangle.InvalidMaterialID;
                 if (material_id != Triangle.InvalidMaterialID)
                 {
-                    var sMatName = materialTokens[material_id];
+                    var sMatName = MaterialTokens.GetName(material_id);
                     var useMat = _materials[sMatName];
                     matID = builder.BuildMaterial(useMat);
                 }
@@ -220,9 +219,9 @@ namespace g3
 
                 var mapV = new Dictionary<Index3i, int>();
 
-                for (var k = 0; k < vTriangles.Length; ++k)
+                for (var k = 0; k < Triangles.Length; ++k)
                 {
-                    var t = vTriangles[k];
+                    var t = Triangles[k];
                     if (t.nMaterialID == material_id)
                     {
                         if (meshID == -1)

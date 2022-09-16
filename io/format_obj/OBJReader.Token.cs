@@ -10,11 +10,10 @@ namespace g3
         /// </summary>
         private readonly Dictionary<int, string> _names;
 
-        public string this[int id] => _names[id];
-
         public int Count => _names.Count;
 
         public int Counter { get; set; }
+
         public int ActiveID { get; private set; }
 
         public Tokens(int invalidID)
@@ -37,5 +36,13 @@ namespace g3
         public IEnumerable<int> ListID() => _names.Keys;
 
         public IEnumerable<string> ListName() => _names.Values;
+
+        public string GetName(int id)
+        {
+            if (_names.TryGetValue(id, out var name))
+                return name;
+
+            return string.Empty;
+        }
     }
 }
