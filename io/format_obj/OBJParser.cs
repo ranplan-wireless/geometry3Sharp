@@ -1,10 +1,13 @@
 ﻿using System;
 using System.IO;
+using System.Threading;
 
 namespace g3
 {
     public class OBJParser : MeshIOLogger
     {
+        private const int CancellationCheckParseStep = 200;
+
         private static readonly string[] splitDoubleSlash = new string[] { "//" };
         private static readonly char[] splitSlash = new char[] { '/' };
 
@@ -41,7 +44,7 @@ namespace g3
         //  had different indices for vtx/normal/uv
         public bool HasComplexVertices { get; set; }
 
-        public IOReadResult ParseInput(TextReader reader)
+        public IOReadResult ParseInput(TextReader reader, CancellationToken cancellationToken)
         {
             VertexPositions = new DVector<double>();
             VertexNormals = new DVector<float>();
@@ -63,6 +66,10 @@ namespace g3
             {
                 var line = reader.ReadLine();
                 nLines++;
+
+                if (cancellationToken.IsCancellationRequested && nLines % CancellationCheckParseStep == 0)
+                    return new IOReadResult(IOCode.Cancelled, "Cancelled by manual when parsing");
+
                 var tokens = line.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
                 if (tokens.Length == 0)
                     continue;

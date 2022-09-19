@@ -29,6 +29,8 @@ namespace g3
     /// </summary>
     public class STLReader : IMeshReader
     {
+        private const int CancellationCheckParseStep = 200;
+        private const int CancellationCheckBuildStep = 100;
 
         public enum Strategy
         {
@@ -141,7 +143,11 @@ namespace g3
             DVector<short> tri_attribs = new DVector<short>();
 
             try {
-                for (int i = 0; i < totalTris; ++i) {
+                for (int i = 0; i < totalTris; ++i)
+                {
+                    if (options.CancellationToken.IsCancellationRequested && i % CancellationCheckParseStep == 0)
+                        return new IOReadResult(IOCode.Cancelled, "Cancelled by manual when reading triangles from binary stl file");
+
                     byte[] tri_bytes = reader.ReadBytes(50);
                     if (tri_bytes.Length < 50)
                         break;
@@ -165,7 +171,11 @@ namespace g3
                 Objects[0].TriAttribs = tri_attribs;
 
             foreach (STLSolid solid in Objects)
-                BuildMesh(solid, builder);
+            {
+                BuildMesh(options.CancellationToken, solid, builder);
+                if (options.CancellationToken.IsCancellationRequested)
+                    return new IOReadResult(IOCode.Cancelled, "Cancelled by manual when building by stl");
+            }
 
             return new IOReadResult(IOCode.Ok, "");
         }
@@ -250,7 +260,11 @@ namespace g3
             }
 
             foreach (STLSolid solid in Objects)
-                BuildMesh(solid, builder);
+            {
+                BuildMesh(options.CancellationToken, solid, builder);
+                if (options.CancellationToken.IsCancellationRequested)
+                    return new IOReadResult(IOCode.Cancelled, "Cancelled by manual when building by stl");
+            }
 
             return new IOReadResult(IOCode.Ok, "");
         }
@@ -260,17 +274,17 @@ namespace g3
 
 
 
-        protected virtual void BuildMesh(STLSolid solid, IMeshBuilder builder)
+        protected virtual void BuildMesh(CancellationToken cancellationToken, STLSolid solid, IMeshBuilder builder)
         {
             if (RebuildStrategy == Strategy.AutoBestResult) {
-                DMesh3 result = BuildMesh_Auto(solid);
+                DMesh3 result = BuildMesh_Auto(cancellationToken, solid);
                 builder.AppendNewMesh(result);
 
             } else if (RebuildStrategy == Strategy.IdenticalVertexWeld) {
-                DMesh3 result = BuildMesh_IdenticalWeld(solid);
+                DMesh3 result = BuildMesh_IdenticalWeld(cancellationToken, solid);
                 builder.AppendNewMesh(result);
             } else if (RebuildStrategy == Strategy.TolerantVertexWeld) {
-                DMesh3 result = BuildMesh_TolerantWeld(solid, WeldTolerance);
+                DMesh3 result = BuildMesh_TolerantWeld(cancellationToken, solid, WeldTolerance);
                 builder.AppendNewMesh(result);
             } else {
                 BuildMesh_NoMerge(solid, builder);
@@ -301,12 +315,12 @@ namespace g3
 
 
 
-        protected virtual DMesh3 BuildMesh_Auto(STLSolid solid)
+        protected virtual DMesh3 BuildMesh_Auto(CancellationToken cancellationToken, STLSolid solid)
         {
-            DMesh3 fastWeldMesh = BuildMesh_IdenticalWeld(solid);
+            DMesh3 fastWeldMesh = BuildMesh_IdenticalWeld(cancellationToken, solid);
             int fastWeldMesh_bdryCount;
             if (check_for_cracks(fastWeldMesh, out fastWeldMesh_bdryCount, WeldTolerance)) {
-                DMesh3 tolWeldMesh = BuildMesh_TolerantWeld(solid, WeldTolerance);
+                DMesh3 tolWeldMesh = BuildMesh_TolerantWeld(cancellationToken, solid, WeldTolerance);
                 int tolWeldMesh_bdryCount = count_boundary_edges(tolWeldMesh);
 
                 if (tolWeldMesh_bdryCount < fastWeldMesh_bdryCount)
@@ -364,7 +378,7 @@ namespace g3
 
 
 
-        protected virtual DMesh3 BuildMesh_IdenticalWeld(STLSolid solid)
+        protected virtual DMesh3 BuildMesh_IdenticalWeld(CancellationToken cancellationToken, STLSolid solid)
         {
             DMesh3Builder builder = new DMesh3Builder();
             builder.AppendNewMesh(false, false, false, false);
@@ -386,14 +400,14 @@ namespace g3
                 }
             }
 
-            append_mapped_triangles(solid, builder, mapV);
+            append_mapped_triangles(cancellationToken, solid, builder, mapV);
             return builder.Meshes[0];
         }
 
 
 
 
-        protected virtual DMesh3 BuildMesh_TolerantWeld(STLSolid solid, double weld_tolerance)
+        protected virtual DMesh3 BuildMesh_TolerantWeld(CancellationToken cancellationToken, STLSolid solid, double weld_tolerance)
         {
             DMesh3Builder builder = new DMesh3Builder();
             builder.AppendNewMesh(false, false, false, false);
@@ -435,16 +449,18 @@ namespace g3
                 }
             }
 
-            append_mapped_triangles(solid, builder, mapV);
+            append_mapped_triangles(cancellationToken, solid, builder, mapV);
             return builder.Meshes[0];
         }
 
 
 
-        void append_mapped_triangles(STLSolid solid, DMesh3Builder builder, int[] mapV)
+        void append_mapped_triangles(CancellationToken cancellationToken, STLSolid solid, DMesh3Builder builder, int[] mapV)
         {
             int nTris = solid.Vertices.Count / 3;
             for (int ti = 0; ti < nTris; ++ti) {
+                if (cancellationToken.IsCancellationRequested && ti % CancellationCheckBuildStep == 0)
+                    break;
                 int a = mapV[3 * ti];
                 int b = mapV[3 * ti + 1];
                 int c = mapV[3 * ti + 2];

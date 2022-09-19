@@ -17,6 +17,7 @@
 
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 
 namespace g3
 {
@@ -76,20 +77,22 @@ namespace g3
     // ReSharper disable once InconsistentNaming
     public class TinyOBJReader : OBJParser
     {
-        public IOReadResult Read(TextReader reader, TinyMeshBuilder builder)
+        private const int CancellationCheckBuildStep = 100;
+
+        public IOReadResult Read(TextReader reader, ReadOptions options, TinyMeshBuilder builder)
         {
             HasComplexVertices = false;
 
             if (nWarningLevel >= 1)
                 emit_warning("[OBJReader] starting parse obj.");
-            var parseResult = ParseInput(reader);
+            var parseResult = ParseInput(reader, options.CancellationToken);
             if (parseResult.code != IOCode.Ok)
                 return parseResult;
 
             if (nWarningLevel >= 1)
                 emit_warning("[OBJReader] completed parse obj.");
 
-            var buildResult = BuildMeshes(builder);
+            var buildResult = BuildMeshes(options.CancellationToken, builder);
 
             if (nWarningLevel >= 1)
                 emit_warning("[OBJReader] build complete.");
@@ -100,7 +103,7 @@ namespace g3
             return new IOReadResult(IOCode.Ok, "");
         }
 
-        private IOReadResult BuildMeshes(TinyMeshBuilder builder)
+        private IOReadResult BuildMeshes(CancellationToken cancellationToken, TinyMeshBuilder builder)
         {
             if (VertexPositions.Length == 0)
                 return new IOReadResult(IOCode.GarbageDataError, "No vertices in file");
@@ -122,6 +125,9 @@ namespace g3
             var nActiveObject = Triangle.InvalidObjectID;
             for (var k = 0; k < Triangles.Length; ++k)
             {
+                if (cancellationToken.IsCancellationRequested && k % CancellationCheckBuildStep == 0)
+                    return new IOReadResult(IOCode.Cancelled, "Cancelled by manual when building");
+
                 var t = Triangles[k];
 
                 if (k == 0
@@ -137,9 +143,9 @@ namespace g3
                     meshID = builder.AppendNewMesh(bHaveNormals, bHaveColors, bMatHaveUVs, false);
 
                     builder.AssignObject(t.nObjectID, ObjectTokens.GetName(t.nObjectID));
-                    builder.AssignGroup(t.nObjectID, GroupTokens.GetName(t.nGroupID));
-                    builder.AssignMaterial(t.nObjectID, MaterialTokens.GetName(t.nMaterialID));
-                    builder.AssignMatFile(t.nObjectID, MatFileTokens.GetName(t.nMatFileID));
+                    builder.AssignGroup(t.nGroupID, GroupTokens.GetName(t.nGroupID));
+                    builder.AssignMaterial(t.nMaterialID, MaterialTokens.GetName(t.nMaterialID));
+                    builder.AssignMatFile(t.nMatFileID, MatFileTokens.GetName(t.nMatFileID));
 
                     mapV = new Dictionary<Index3i, int>();
                 }

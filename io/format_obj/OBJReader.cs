@@ -29,7 +29,7 @@ namespace g3
 
             if (nWarningLevel >= 1)
                 emit_warning("[OBJReader] starting parse obj.");
-            var parseResult = ParseInput(reader);
+            var parseResult = ParseInput(reader, options.CancellationToken);
             if (parseResult.code != IOCode.Ok)
                 return parseResult;
 

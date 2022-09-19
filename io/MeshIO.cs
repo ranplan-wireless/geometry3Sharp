@@ -25,29 +25,10 @@ namespace g3
         // write errors
         WriterError = 200,
 
+        Cancelled = 300,
 
         // other status
         ComputingInWorkerThread = 1000
-    }
-
-
-
-    public class ReadOptions
-    {
-		public bool ReadMaterials;
-
-        // format readers will inevitably have their own settings, we
-        // can use this to pass arguments to them
-        public CommandArgumentSet CustomFlags = new CommandArgumentSet();
-
-        public ReadOptions()
-        {
-			ReadMaterials = false;
-        }
-
-        public static readonly ReadOptions Defaults = new ReadOptions() {
-            ReadMaterials = false
-        };
     }
 
     public struct IOReadResult
