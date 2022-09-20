@@ -201,7 +201,7 @@ namespace g3
                 vinfo.c = new Vector3f(VertexColors[vi], VertexColors[vi + 1], VertexColors[vi + 2]);
             }
 
-            if (bHaveUVs)
+            if (bHaveUVs && vertIdx.c > 0)
             {
                 vinfo.bHaveUV = true;
                 var ui = 2 * vertIdx.c;
