@@ -188,7 +188,7 @@ namespace g3
             var vinfo = new NewVertexInfo();
             vinfo.bHaveC = vinfo.bHaveN = vinfo.bHaveUV = false;
             vinfo.v = new Vector3d(VertexPositions[vi], VertexPositions[vi + 1], VertexPositions[vi + 2]);
-            if (bHaveNormals)
+            if (bHaveNormals && vertIdx.b > 0)
             {
                 vinfo.bHaveN = true;
                 var ni = 3 * vertIdx.b;
