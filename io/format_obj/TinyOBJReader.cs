@@ -110,9 +110,9 @@ namespace g3
             if (Triangles.Length == 0)
                 return new IOReadResult(IOCode.GarbageDataError, "No triangles in file");
 
-            var bHaveNormals = (VertexNormals.Length > 0);
-            var bHaveColors = (VertexColors.Length > 0);
-            var bHaveUVs = (VertexUVs.Length > 0);
+            var bHaveNormals = (VertexNormals.Length == VertexPositions.Length);
+            var bHaveColors = (VertexColors.Length == VertexPositions.Length);
+            var bHaveUVs = (VertexUVs.Length / 2 == VertexPositions.Length / 3);
             var bMatHaveUVs = false;
 
             // don't append mesh until we actually see triangles
@@ -153,7 +153,8 @@ namespace g3
                 var t2 = new Triangle();
                 for (var j = 0; j < 3; ++j)
                 {
-                    var vk = new Index3i(t.vIndices[j] - 1, t.vNormals[j] - 1, t.vUVs[j] - 1);
+                    var vi = t.vIndices[j] - 1;
+                    var vk = new Index3i(vi, bHaveNormals ? t.vNormals[j] - 1 : vi, bHaveUVs ? t.vUVs[j] - 1 : vi);
 
                     var use_vtx = -1;
                     if (mapV.ContainsKey(vk) == false)
