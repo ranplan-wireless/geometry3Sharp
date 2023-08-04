@@ -189,7 +189,7 @@ namespace g3
             var vinfo = new NewVertexInfo();
             vinfo.bHaveC = vinfo.bHaveN = vinfo.bHaveUV = false;
             vinfo.v = new Vector3d(VertexPositions[vi], VertexPositions[vi + 1], VertexPositions[vi + 2]);
-            if (bHaveNormals && vertIdx.b > 0)
+            if (bHaveNormals && vertIdx.b >= 0)
             {
                 vinfo.bHaveN = true;
                 var ni = 3 * vertIdx.b;
@@ -202,7 +202,7 @@ namespace g3
                 vinfo.c = new Vector3f(VertexColors[vi], VertexColors[vi + 1], VertexColors[vi + 2]);
             }
 
-            if (bHaveUVs && vertIdx.c > 0)
+            if (bHaveUVs && vertIdx.c >= 0)
             {
                 vinfo.bHaveUV = true;
                 var ui = 2 * vertIdx.c;
