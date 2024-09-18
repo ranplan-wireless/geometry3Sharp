@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>1.1.0.19</Version>
+    <Version>1.1.0.20</Version>
 	<Title>geometry3Sharp</Title>
     <Authors>Ryan Schmidt</Authors>
     <Company>gradientspace</Company>

@@ -192,8 +192,11 @@ namespace g3
             {
                 Util.gDevAssert(false, "SmallListSet.MoveTo: list at " + from_index + " is empty!");
             }
-            list_heads[to_index] = list_heads[from_index];
-            list_heads[from_index] = Null;
+            else
+            {
+                list_heads[to_index] = list_heads[from_index];
+                list_heads[from_index] = Null;
+            }
         }
 
 
