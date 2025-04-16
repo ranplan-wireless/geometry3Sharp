@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-
-namespace g3
+﻿namespace g3
 {
     public interface IPointSet
     {
@@ -26,8 +20,6 @@ namespace g3
         int Timestamp { get; }
     }
 
-
-
     public interface IMesh : IPointSet
     {
         int TriangleCount { get; }
@@ -41,22 +33,27 @@ namespace g3
         bool HasTriangleGroups { get; }
 
         Index3i GetTriangle(int i);
+        void GetTriVertices(int tID, ref Vector3d v0, ref Vector3d v1, ref Vector3d v2);
         int GetTriangleGroup(int i);
+        Vector3d GetTriNormal(int tID);
+        double GetTriArea(int tID);
 
         bool IsTriangle(int tID);
+
+        AxisAlignedBox3d GetBounds();
 
         // iterators allow us to work with gaps in index space
         System.Collections.Generic.IEnumerable<int> TriangleIndices();
     }
 
-
     public interface IDeformableMesh : IMesh
     {
+        int AppendVertex(Vector3d v);
+        int AppendVertex(NewVertexInfo info);
         void SetVertex(int vID, Vector3d vNewPos);
         void SetVertexNormal(int vid, Vector3f vNewNormal);
+        int AppendTriangle(int i, int j, int k, int g = -1);
     }
-
-
 
     /*
      * Abstracts construction of meshes, so that we can construct different types, etc
@@ -86,7 +83,6 @@ namespace g3
 		}
     }
 
-
     public interface IMeshBuilder
     {
         // return ID of new mesh
@@ -112,8 +108,4 @@ namespace g3
         bool SupportsMetaData { get; }
         void AppendMetaData(string identifier, object data);
     }
-
-
-
-
 }

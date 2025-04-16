@@ -133,6 +133,18 @@ namespace g3
             updateTimeStamp();
             return i;
         }
+
+        public int AppendVertex(Vector3d v)
+        {
+            return AppendVertex(new NewVertexInfo()
+            {
+                v = v,
+                bHaveC = false,
+                bHaveUV = false,
+                bHaveN = false
+            });
+        }
+
         public int AppendVertex(NewVertexInfo info)
         {
             int i = Vertices.Length / 3;
@@ -271,8 +283,34 @@ namespace g3
         public bool IsVertex(int vID) {
             return vID * 3 < Vertices.Length;
         }
+
+        public double GetTriArea(int tID)
+        {
+            Vector3d v0 = Vector3d.Zero, v1 = Vector3d.Zero, v2 = Vector3d.Zero;
+            GetTriVertices(tID, ref v0, ref v1, ref v2);
+            return MathUtil.Area(ref v0, ref v1, ref v2);
+        }
+
         public bool IsTriangle(int tID) {
             return tID * 3 < Triangles.Length;
+        }
+
+        public AxisAlignedBox3d GetBounds()
+        {
+            double x = Vertices[0];
+            double y = Vertices[1];
+            double z = Vertices[2];
+            double minx = x, maxx = x, miny = y, maxy = y, minz = z, maxz = z;
+
+            for (int vi = 1; vi < VertexCount; vi++)
+            {
+                x = Vertices[3*vi]; y = Vertices[3*vi + 1]; z = Vertices[3*vi + 2];
+                if (x < minx) minx = x; else if (x > maxx) maxx = x;
+                if (y < miny) miny = y; else if (y > maxy) maxy = y;
+                if (z < minz) minz = z; else if (z > maxz) maxz = z;
+            }
+
+            return new AxisAlignedBox3d(minx, miny, minz, maxx, maxy, maxz);
         }
 
         public bool HasVertexColors
@@ -342,9 +380,26 @@ namespace g3
             return new Index3i(Triangles[3 * i], Triangles[3 * i + 1], Triangles[3 * i + 2]);
         }
 
+        public void GetTriVertices(int tID, ref Vector3d v0, ref Vector3d v1, ref Vector3d v2)
+        {
+            int ai = 3 * Triangles[3 * tID];
+            v0.x = Vertices[ai]; v0.y = Vertices[ai + 1]; v0.z = Vertices[ai + 2];
+            int bi = 3 * Triangles[3 * tID + 1];
+            v1.x = Vertices[bi]; v1.y = Vertices[bi + 1]; v1.z = Vertices[bi + 2];
+            int ci = 3 * Triangles[3 * tID + 2];
+            v2.x = Vertices[ci]; v2.y = Vertices[ci + 1]; v2.z = Vertices[ci + 2];
+        }
+
         public int GetTriangleGroup(int i)
         {
             return FaceGroups[i];
+        }
+
+        public Vector3d GetTriNormal(int tID)
+        {
+            Vector3d v0 = Vector3d.Zero, v1 = Vector3d.Zero, v2 = Vector3d.Zero;
+            GetTriVertices(tID, ref v0, ref v1, ref v2);
+            return MathUtil.Normal(ref v0, ref v1, ref v2);
         }
 
 
