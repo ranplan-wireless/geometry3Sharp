@@ -42,6 +42,11 @@ namespace g3
         public int Timestamp {
             get { return Mesh.Timestamp; }
         }
+
+        public int ShapeTimestamp
+        {
+            get { return Mesh.ShapeTimestamp; }
+        }
     }
 
 
@@ -88,6 +93,11 @@ namespace g3
         /// </summary>
         public int Timestamp {
             get { return Mesh.Timestamp; }
+        }
+
+        public int ShapeTimestamp
+        {
+            get { return Mesh.ShapeTimestamp; }
         }
     }
 

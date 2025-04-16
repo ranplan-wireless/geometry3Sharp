@@ -127,7 +127,10 @@ namespace gs
 			}
 
             public int Timestamp { get { return Mesh.Timestamp; } }
-
+            public int ShapeTimestamp
+            {
+                get { return Mesh.ShapeTimestamp; }
+            }
         }
 
 

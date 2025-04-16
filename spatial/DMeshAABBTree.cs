@@ -7,7 +7,7 @@ using System.Diagnostics;
 namespace g3
 {
     /// <summary>
-    /// Hierarchical Axis-Aligned-Bounding-Box tree for a DMesh3 mesh.
+    /// Hierarchical Axis-Aligned-Bounding-Box tree for a IMesh mesh.
     /// This class supports a variety of spatial queries, listed below.
     /// 
     /// Various construction strategies are also available, the default is the
@@ -31,10 +31,10 @@ namespace g3
     /// </summary>
     public class DMeshAABBTree3 : ISpatial
     {
-        protected DMesh3 mesh;
+        protected IMesh mesh;
         protected int mesh_timestamp;
 
-        public DMeshAABBTree3(DMesh3 m, bool autoBuild = false)
+        public DMeshAABBTree3(IMesh m, bool autoBuild = false)
         {
             mesh = m;
             if (autoBuild)
@@ -42,7 +42,7 @@ namespace g3
         }
 
 
-        public DMesh3 Mesh { get { return mesh; } }
+        public IMesh Mesh { get { return mesh; } }
 
 
         /// <summary>
@@ -267,7 +267,7 @@ namespace g3
         public bool SupportsTriangleRayIntersection { get { return true; } }
 
         /// <summary>
-        /// find id of first triangle that ray hits, within distance fMaxDist, or return DMesh3.InvalidID
+        /// find id of first triangle that ray hits, within distance fMaxDist, or return IMesh.InvalidID
         /// Use MeshQueries.TriangleIntersection() to get more information
         /// </summary>
         public virtual int FindNearestHitTriangle(Ray3d ray, double fMaxDist = double.MaxValue)
@@ -1157,6 +1157,9 @@ namespace g3
 
         protected void build_winding_cache()
         {
+            if (!(Mesh is DMesh3))
+                throw new NotSupportedException();
+
             // The basic strategy to build the winding cache is to descend the tree until we hit a node with N
             // triangles below it, then build a cache for those triangles. We also (currently) build all caches
             // above such a node, because it makes a big speed difference. Changing this threshold does not appear
@@ -1242,11 +1245,11 @@ namespace g3
         protected void make_box_winding_cache(int iBox, HashSet<int> triangles)
         {
             Util.gDevAssert(WindingCache.ContainsKey(iBox) == false);
-
+            var mesh = (DMesh3)Mesh;
             List<int> edges = new List<int>();
             foreach ( int tid in triangles ) {
-                Index3i tri = Mesh.GetTriangle(tid);
-                Index3i nbr_tris = Mesh.GetTriNeighbourTris(tid);
+                Index3i tri = mesh.GetTriangle(tid);
+                Index3i nbr_tris = mesh.GetTriNeighbourTris(tid);
                 for ( int j = 0; j < 3; ++j) {
                     if ( nbr_tris[j] == DMesh3.InvalidID || triangles.Contains(nbr_tris[j]) == false ) {
                         edges.Add(tri[(j+1) % 3]);
@@ -1323,6 +1326,9 @@ namespace g3
         /// </summary>
         public virtual double FastWindingNumber(Vector3d p)
         {
+            if (!(Mesh is DMesh3))
+                throw new NotSupportedException();
+
             if (mesh_timestamp != mesh.ShapeTimestamp)
                 throw new Exception("DMeshAABBTree3.FastWindingNumber: mesh has been modified since tree construction");
 
@@ -1403,7 +1409,7 @@ namespace g3
             int WINDING_CACHE_THRESH = 1;
 
             //MeshTriInfoCache triCache = null;
-            MeshTriInfoCache triCache = new MeshTriInfoCache(mesh);
+            MeshTriInfoCache triCache = new MeshTriInfoCache((DMesh3)mesh);
 
             FastWindingCache = new Dictionary<int, FWNInfo>();
             HashSet<int> root_hash;
@@ -1488,7 +1494,7 @@ namespace g3
 
             // construct cache
             FWNInfo cacheInfo = new FWNInfo();
-            FastTriWinding.ComputeCoeffs(Mesh, triangles, ref cacheInfo.Center, ref cacheInfo.R, ref cacheInfo.Order1Vec, ref cacheInfo.Order2Mat, triCache);
+            FastTriWinding.ComputeCoeffs((DMesh3)Mesh, triangles, ref cacheInfo.Center, ref cacheInfo.R, ref cacheInfo.Order1Vec, ref cacheInfo.Order2Mat, triCache);
 
             FastWindingCache[iBox] = cacheInfo;
         }
@@ -1825,6 +1831,9 @@ namespace g3
         //  3) repeat until layer K has only 1 box, which is root of tree
         void build_by_one_rings(ClusterPolicy ePolicy)
         {
+            if (!(mesh is DMesh3))
+                throw new NotSupportedException();
+
             box_to_index = new DVector<int>();
             box_centers = new DVector<Vector3f>();
             box_extents = new DVector<Vector3f>();
@@ -1838,7 +1847,7 @@ namespace g3
             Array.Clear(used_triangles, 0, used_triangles.Length);
 
             // temporary buffer
-            int nMaxEdgeCount = mesh.GetMaxVtxEdgeCount();
+            int nMaxEdgeCount = ((DMesh3)mesh).GetMaxVtxEdgeCount();
             int[] temp_tris = new int[2*nMaxEdgeCount];
 
             // first pass: cluster by one-ring, but if # of free tris
@@ -1911,7 +1920,7 @@ namespace g3
         {
             // collect free triangles
             int num_free = 0;
-            foreach ( int tid in mesh.VtxTrianglesItr(vid) ) {
+            foreach ( int tid in ((DMesh3)mesh).VtxTrianglesItr(vid) ) {
                 if ( used_triangles[tid] == 0 ) 
                     temp_tris[num_free++] = tid;
             }
@@ -1936,7 +1945,7 @@ namespace g3
             for (int i = 0; i < num_free; ++i) {
                 index_list.insert(temp_tris[i], iIndicesCur++);
                 used_triangles[temp_tris[i]]++;     // incrementing for sanity check below, just need to set to 1
-                box.Contain(mesh.GetTriBounds(temp_tris[i]));
+                box.Contain(((DMesh3)mesh).GetTriBounds(temp_tris[i]));
             }
 
             box_centers.insert(box.Center, iBox);
