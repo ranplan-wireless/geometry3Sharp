@@ -195,7 +195,7 @@ namespace g3
         /// <summary>
         /// Compute distance from point to triangle in mesh, with minimal extra objects/etc
         /// </summary>
-        public static double TriDistanceSqr(DMesh3 mesh, int ti, Vector3d point)
+        public static double TriDistanceSqr(IMesh mesh, int ti, Vector3d point)
         {
             Vector3d V0 = Vector3d.Zero, V1 = Vector3d.Zero, V2 = Vector3d.Zero;
             mesh.GetTriVertices(ti, ref V0, ref V1, ref V2);

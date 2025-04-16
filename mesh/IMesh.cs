@@ -18,6 +18,8 @@
         System.Collections.Generic.IEnumerable<int> VertexIndices();
 
         int Timestamp { get; }
+
+        int ShapeTimestamp { get; }
     }
 
     public interface IMesh : IPointSet
@@ -37,6 +39,8 @@
         int GetTriangleGroup(int i);
         Vector3d GetTriNormal(int tID);
         double GetTriArea(int tID);
+        AxisAlignedBox3d GetTriBounds(int tID);
+        Vector3d GetTriCentroid(int tID);
 
         bool IsTriangle(int tID);
 

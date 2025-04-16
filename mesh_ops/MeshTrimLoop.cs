@@ -135,7 +135,7 @@ namespace g3
                 target_len = avge;
             }
 
-            MeshProjectionTarget meshTarget = new MeshProjectionTarget(Spatial.Mesh, Spatial);
+            MeshProjectionTarget meshTarget = new MeshProjectionTarget((DMesh3)Spatial.Mesh, Spatial);
             remesh.SetProjectionTarget(meshTarget);
             remesh.SetTargetEdgeLength(target_len);
             remesh.SmoothSpeedT = SmoothingAlpha;

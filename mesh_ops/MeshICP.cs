@@ -162,7 +162,7 @@ namespace g3
                     return;
                 }
 
-                DistPoint3Triangle3 d = MeshQueries.TriangleDistance(TargetSurface.Mesh, tid, From[vi]);
+                DistPoint3Triangle3 d = MeshQueries.TriangleDistance((DMesh3)TargetSurface.Mesh, tid, From[vi]);
                 if ( d.DistanceSquared > MaxAllowableDistance*MaxAllowableDistance ) {
                     Weights[vi] = 0;
                     return;
