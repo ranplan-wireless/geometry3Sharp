@@ -45,6 +45,7 @@
         bool IsTriangle(int tID);
 
         AxisAlignedBox3d GetBounds();
+        AxisAlignedBox3d CachedBounds { get; }
 
         // iterators allow us to work with gaps in index space
         System.Collections.Generic.IEnumerable<int> TriangleIndices();

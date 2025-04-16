@@ -348,6 +348,22 @@ namespace g3
             return new AxisAlignedBox3d(minx, miny, minz, maxx, maxy, maxz);
         }
 
+        AxisAlignedBox3d cached_bounds;
+        int cached_bounds_timestamp = -1;
+
+        public AxisAlignedBox3d CachedBounds
+        {
+            get
+            {
+                if (cached_bounds_timestamp != Timestamp)
+                {
+                    cached_bounds = GetBounds();
+                    cached_bounds_timestamp = Timestamp;
+                }
+                return cached_bounds;
+            }
+        }
+
         public bool HasVertexColors
         {
             get { return Colors != null && Colors.Length == Vertices.Length; }
