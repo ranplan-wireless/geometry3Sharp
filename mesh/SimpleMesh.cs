@@ -257,6 +257,40 @@ namespace g3
             }
             updateTimeStamp();
         }
+
+        public void ReverseOrientation(bool bFlipNormals = true)
+        {
+            foreach (int tid in TriangleIndices())
+            {
+                internal_reverse_tri_orientation(tid);
+            }
+            if (bFlipNormals && HasVertexNormals)
+            {
+                foreach (int vid in VertexIndices())
+                {
+                    int i = 3*vid;
+                    Normals[i] = -Normals[i];
+                    Normals[i+1] = -Normals[i+1];
+                    Normals[i+2] = -Normals[i+2];
+                }
+            }
+            updateTimeStamp(true);
+        }
+
+        void internal_reverse_tri_orientation(int tID)
+        {
+            Index3i t = GetTriangle(tID);
+            set_triangle(tID, t[1], t[0], t[2]);
+        }
+
+        void set_triangle(int tid, int v0, int v1, int v2)
+        {
+            int i = 3*tid;
+            Triangles[i] = v0;
+            Triangles[i + 1] = v1;
+            Triangles[i + 2] = v2;
+        }
+
         public void Scale(double s)
         {
             Scale(s, s, s);
