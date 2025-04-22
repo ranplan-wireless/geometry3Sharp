@@ -19,18 +19,18 @@ using System.Collections.Generic;
 
 namespace g3.io
 {
-    public abstract class AbstractMeshBuilder
+    public abstract class AbstractMeshBuilder<T> where T : IDeformableMesh
     {
-        private readonly List<TinyMeshItem> _items = new List<TinyMeshItem>();
-        public IEnumerable<TinyMeshItem> Items => _items;
+        private readonly List<TinyMeshItem<T>> _items = new List<TinyMeshItem<T>>();
+        public IEnumerable<TinyMeshItem<T>> Items => _items;
 
-        public DMesh3 ActiveMesh => _items[_nActiveMesh].Mesh;
+        public T ActiveMesh => _items[_nActiveMesh].Mesh;
         private int _nActiveMesh = -1;
 
-        public int AppendNewMesh(DMesh3 existingMesh)
+        public int AppendNewMesh(T existingMesh)
         {
             var index = _items.Count;
-            _items.Add(new TinyMeshItem(existingMesh));
+            _items.Add(new TinyMeshItem<T>(existingMesh));
 
             _nActiveMesh = index;
             return index;

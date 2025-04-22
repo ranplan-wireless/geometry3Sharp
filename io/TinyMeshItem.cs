@@ -23,14 +23,14 @@ namespace g3
     /// <summary>
     /// The mesh read result item by <see cref="TinyOBJReader"/>
     /// </summary>
-    public class TinyMeshItem
+    public class TinyMeshItem<T> where T : IDeformableMesh
     {
         private readonly Dictionary<string, object> _metadata = new Dictionary<string, object>();
 
         /// <summary>
         /// The mesh geometry
         /// </summary>
-        public DMesh3 Mesh { get; }
+        public T Mesh { get; set; }
 
         /// <summary>
         /// The mesh object name, the line start with `o`
@@ -73,7 +73,7 @@ namespace g3
         /// </summary>
         public IDictionary<string, object> Metadata { get; }
 
-        public TinyMeshItem(DMesh3 mesh)
+        public TinyMeshItem(T mesh)
         {
             Mesh = mesh;
             SetObject(Triangle.InvalidObjectID, string.Empty);
