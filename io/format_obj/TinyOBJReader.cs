@@ -79,7 +79,7 @@ namespace g3
     {
         private const int CancellationCheckBuildStep = 100;
 
-        public IOReadResult Read(TextReader reader, ReadOptions options, TinyMeshBuilder builder)
+        public IOReadResult Read<T>(TextReader reader, ReadOptions options, TinyMeshBuilder<T> builder) where T : IDeformableMesh
         {
             HasComplexVertices = false;
 
@@ -103,7 +103,7 @@ namespace g3
             return new IOReadResult(IOCode.Ok, "");
         }
 
-        private IOReadResult BuildMeshes(CancellationToken cancellationToken, TinyMeshBuilder builder)
+        private IOReadResult BuildMeshes<T>(CancellationToken cancellationToken, TinyMeshBuilder<T> builder) where T : IDeformableMesh
         {
             if (VertexPositions.Length == 0)
                 return new IOReadResult(IOCode.GarbageDataError, "No vertices in file");
@@ -174,7 +174,7 @@ namespace g3
             return new IOReadResult(IOCode.Ok, "");
         }
 
-        private int append_vertex(TinyMeshBuilder builder, Index3i vertIdx, bool bHaveNormals, bool bHaveColors, bool bHaveUVs)
+        private int append_vertex<T>(TinyMeshBuilder<T> builder, Index3i vertIdx, bool bHaveNormals, bool bHaveColors, bool bHaveUVs) where T : IDeformableMesh
         {
             var vi = 3 * vertIdx.a;
             if (vertIdx.a < 0 || vertIdx.a >= VertexPositions.Length / 3)
@@ -212,7 +212,7 @@ namespace g3
             return builder.AppendVertex(vinfo);
         }
 
-        private int append_triangle(TinyMeshBuilder builder, Triangle t)
+        private int append_triangle<T>(TinyMeshBuilder<T> builder, Triangle t) where T : IDeformableMesh
         {
             if (t.vIndices[0] < 0 || t.vIndices[1] < 0 || t.vIndices[2] < 0)
             {

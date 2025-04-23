@@ -24,6 +24,11 @@ namespace g3
             Initialize();
         }
 
+        public SimpleMesh(bool bHaveVtxNormals, bool bHaveVtxColors, bool bHaveVtxUVs, bool bHaveFaceGroups)
+        {
+            Initialize(bHaveVtxNormals, bHaveVtxColors, bHaveVtxUVs, bHaveFaceGroups);
+        }
+
         //public void CopyTo(SimpleMesh mTo)
         //{
         //    mTo.Vertices = Util.BufferCopy(this.Vertices, mTo.Vertices);
@@ -40,7 +45,7 @@ namespace g3
         //    return mTo;
         //}
 
-		public SimpleMesh(IMesh copy) {
+        public SimpleMesh(IMesh copy) {
 			Initialize(copy.HasVertexNormals, copy.HasVertexColors, copy.HasVertexUVs, copy.HasTriangleGroups);
 			int[] mapV = new int[copy.MaxVertexID];
 			foreach ( int vid in copy.VertexIndices() ) {
