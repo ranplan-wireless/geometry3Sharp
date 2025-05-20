@@ -17,10 +17,16 @@ namespace g3
         public DVector<int> FaceGroups;
 
         int timestamp = 0;
+        int shape_timestamp = 0;
 
         public SimpleMesh()
         {
             Initialize();
+        }
+
+        public SimpleMesh(bool bHaveVtxNormals, bool bHaveVtxColors, bool bHaveVtxUVs, bool bHaveFaceGroups)
+        {
+            Initialize(bHaveVtxNormals, bHaveVtxColors, bHaveVtxUVs, bHaveFaceGroups);
         }
 
         //public void CopyTo(SimpleMesh mTo)
@@ -39,7 +45,7 @@ namespace g3
         //    return mTo;
         //}
 
-		public SimpleMesh(IMesh copy) {
+        public SimpleMesh(IMesh copy) {
 			Initialize(copy.HasVertexNormals, copy.HasVertexColors, copy.HasVertexUVs, copy.HasTriangleGroups);
 			int[] mapV = new int[copy.MaxVertexID];
 			foreach ( int vid in copy.VertexIndices() ) {
@@ -109,10 +115,16 @@ namespace g3
             get { return timestamp; }
         }
 
-        void updateTimeStamp() {
+        void updateTimeStamp(bool bShapeChange = true) {
             timestamp++;
+            if (bShapeChange)
+                shape_timestamp++;
         }
 
+        public int ShapeTimestamp
+        {
+            get { return shape_timestamp; }
+        }
 
         /*
          * Construction
@@ -133,6 +145,18 @@ namespace g3
             updateTimeStamp();
             return i;
         }
+
+        public int AppendVertex(Vector3d v)
+        {
+            return AppendVertex(new NewVertexInfo()
+            {
+                v = v,
+                bHaveC = false,
+                bHaveUV = false,
+                bHaveN = false
+            });
+        }
+
         public int AppendVertex(NewVertexInfo info)
         {
             int i = Vertices.Length / 3;
@@ -238,6 +262,40 @@ namespace g3
             }
             updateTimeStamp();
         }
+
+        public void ReverseOrientation(bool bFlipNormals = true)
+        {
+            foreach (int tid in TriangleIndices())
+            {
+                internal_reverse_tri_orientation(tid);
+            }
+            if (bFlipNormals && HasVertexNormals)
+            {
+                foreach (int vid in VertexIndices())
+                {
+                    int i = 3*vid;
+                    Normals[i] = -Normals[i];
+                    Normals[i+1] = -Normals[i+1];
+                    Normals[i+2] = -Normals[i+2];
+                }
+            }
+            updateTimeStamp(true);
+        }
+
+        void internal_reverse_tri_orientation(int tID)
+        {
+            Index3i t = GetTriangle(tID);
+            set_triangle(tID, t[1], t[0], t[2]);
+        }
+
+        void set_triangle(int tid, int v0, int v1, int v2)
+        {
+            int i = 3*tid;
+            Triangles[i] = v0;
+            Triangles[i + 1] = v1;
+            Triangles[i + 2] = v2;
+        }
+
         public void Scale(double s)
         {
             Scale(s, s, s);
@@ -271,8 +329,78 @@ namespace g3
         public bool IsVertex(int vID) {
             return vID * 3 < Vertices.Length;
         }
+
+        public double GetTriArea(int tID)
+        {
+            Vector3d v0 = Vector3d.Zero, v1 = Vector3d.Zero, v2 = Vector3d.Zero;
+            GetTriVertices(tID, ref v0, ref v1, ref v2);
+            return MathUtil.Area(ref v0, ref v1, ref v2);
+        }
+
+        public AxisAlignedBox3d GetTriBounds(int tID)
+        {
+            int vi = 3 * Triangles[3 * tID];
+            double x = Vertices[vi], y = Vertices[vi + 1], z = Vertices[vi + 2];
+            double minx = x, maxx = x, miny = y, maxy = y, minz = z, maxz = z;
+            for (int i = 1; i < 3; ++i)
+            {
+                vi = 3 * Triangles[3 * tID + i];
+                x = Vertices[vi]; y = Vertices[vi + 1]; z = Vertices[vi + 2];
+                if (x < minx) minx = x; else if (x > maxx) maxx = x;
+                if (y < miny) miny = y; else if (y > maxy) maxy = y;
+                if (z < minz) minz = z; else if (z > maxz) maxz = z;
+            }
+            return new AxisAlignedBox3d(minx, miny, minz, maxx, maxy, maxz);
+        }
+
+        public Vector3d GetTriCentroid(int tID)
+        {
+            int ai = 3 * Triangles[3 * tID],
+                bi = 3 * Triangles[3 * tID + 1],
+                ci = 3 * Triangles[3 * tID + 2];
+            double f = (1.0 / 3.0);
+            return new Vector3d(
+                (Vertices[ai] + Vertices[bi] + Vertices[ci]) * f,
+                (Vertices[ai + 1] + Vertices[bi + 1] + Vertices[ci + 1]) * f,
+                (Vertices[ai + 2] + Vertices[bi + 2] + Vertices[ci + 2]) * f);
+        }
+
         public bool IsTriangle(int tID) {
             return tID * 3 < Triangles.Length;
+        }
+
+        public AxisAlignedBox3d GetBounds()
+        {
+            double x = Vertices[0];
+            double y = Vertices[1];
+            double z = Vertices[2];
+            double minx = x, maxx = x, miny = y, maxy = y, minz = z, maxz = z;
+
+            for (int vi = 1; vi < VertexCount; vi++)
+            {
+                x = Vertices[3*vi]; y = Vertices[3*vi + 1]; z = Vertices[3*vi + 2];
+                if (x < minx) minx = x; else if (x > maxx) maxx = x;
+                if (y < miny) miny = y; else if (y > maxy) maxy = y;
+                if (z < minz) minz = z; else if (z > maxz) maxz = z;
+            }
+
+            return new AxisAlignedBox3d(minx, miny, minz, maxx, maxy, maxz);
+        }
+
+        AxisAlignedBox3d cached_bounds;
+        int cached_bounds_timestamp = -1;
+
+        public AxisAlignedBox3d CachedBounds
+        {
+            get
+            {
+                if (cached_bounds_timestamp != Timestamp)
+                {
+                    cached_bounds = GetBounds();
+                    cached_bounds_timestamp = Timestamp;
+                }
+                return cached_bounds;
+            }
         }
 
         public bool HasVertexColors
@@ -342,9 +470,26 @@ namespace g3
             return new Index3i(Triangles[3 * i], Triangles[3 * i + 1], Triangles[3 * i + 2]);
         }
 
+        public void GetTriVertices(int tID, ref Vector3d v0, ref Vector3d v1, ref Vector3d v2)
+        {
+            int ai = 3 * Triangles[3 * tID];
+            v0.x = Vertices[ai]; v0.y = Vertices[ai + 1]; v0.z = Vertices[ai + 2];
+            int bi = 3 * Triangles[3 * tID + 1];
+            v1.x = Vertices[bi]; v1.y = Vertices[bi + 1]; v1.z = Vertices[bi + 2];
+            int ci = 3 * Triangles[3 * tID + 2];
+            v2.x = Vertices[ci]; v2.y = Vertices[ci + 1]; v2.z = Vertices[ci + 2];
+        }
+
         public int GetTriangleGroup(int i)
         {
             return FaceGroups[i];
+        }
+
+        public Vector3d GetTriNormal(int tID)
+        {
+            Vector3d v0 = Vector3d.Zero, v1 = Vector3d.Zero, v2 = Vector3d.Zero;
+            GetTriVertices(tID, ref v0, ref v1, ref v2);
+            return MathUtil.Normal(ref v0, ref v1, ref v2);
         }
 
 
@@ -411,20 +556,20 @@ namespace g3
             Normals[3 * i] = n.x;
             Normals[3 * i + 1] = n.y;
             Normals[3 * i + 2] = n.z;
-            updateTimeStamp();
+            updateTimeStamp(false);
         }
 
         public void SetVertexColor(int i, Vector3f c) {
             Colors[3 * i] = c.x;
             Colors[3 * i + 1] = c.y;
             Colors[3 * i + 2] = c.z;
-            updateTimeStamp();
+            updateTimeStamp(false);
         }
 
         public void SetVertexUV(int i, Vector2f uv) {
             UVs[2 * i] = uv.x;
             UVs[2 * i + 1] = uv.y;
-            updateTimeStamp();
+            updateTimeStamp(false);
         }
 
 

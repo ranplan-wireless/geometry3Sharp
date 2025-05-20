@@ -11,11 +11,11 @@ namespace g3
     /// </summary>
     public class MeshProjectionTarget : IOrientedProjectionTarget
     {
-        public DMesh3 Mesh { get; set; }
+        public IMesh Mesh { get; set; }
         public ISpatial Spatial { get; set; }
 
         public MeshProjectionTarget() { }
-        public MeshProjectionTarget(DMesh3 mesh, ISpatial spatial)
+        public MeshProjectionTarget(IMesh mesh, ISpatial spatial)
         {
             Mesh = mesh;
             Spatial = spatial;
@@ -23,7 +23,7 @@ namespace g3
                 Spatial = new DMeshAABBTree3(mesh, true);
         }
 
-        public MeshProjectionTarget(DMesh3 mesh)
+        public MeshProjectionTarget(IMesh mesh)
         {
             Mesh = mesh;
             Spatial = new DMeshAABBTree3(mesh, true);
