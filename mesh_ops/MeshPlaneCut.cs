@@ -38,6 +38,8 @@ namespace g3
         // the min-edge-length if we are collapsing degenerate edges
         public double DegenerateEdgeTol = MathUtil.ZeroTolerancef;
 
+        public double Epsilon = 1e-4;
+
         // if non-null, we will only iterate through these edges
         public MeshFaceSelection CutFaceSet = null;
 
@@ -84,7 +86,8 @@ namespace g3
 			gParallel.ForEach(Interval1i.Range(MaxVID), (vid) => {
 				if (Mesh.IsVertex(vid)) {
 					Vector3d v = Mesh.GetVertex(vid);
-					signs[vid] = (v - PlaneOrigin).Dot(PlaneNormal);
+                    double dist = (v - PlaneOrigin).Dot(PlaneNormal);
+                    signs[vid] = Math.Abs(dist) < Epsilon ? 0 : dist;
 				} else
 					signs[vid] = invalidDist;
 			});
