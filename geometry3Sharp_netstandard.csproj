@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>1.1.0.38</Version>
+    <Version>1.1.0.39</Version>
 	<Title>geometry3Sharp</Title>
     <Authors>Ryan Schmidt</Authors>
     <Company>gradientspace</Company>
@@ -23,6 +23,9 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Product>geometry3Sharp</Product>
     <PackageId>geometry3Sharp</PackageId>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
 
   <ItemGroup>
