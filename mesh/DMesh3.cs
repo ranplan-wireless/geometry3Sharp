@@ -2221,11 +2221,11 @@ namespace g3
                 // set vertex and tri refcounts to 1
                 // find edges [a,b] in each triangle and set its tri-edge to this edge
 
-                if (vertices_refcount.isValidUnsafe(va) == false) {
+                if (vertices_refcount.isValid(va) == false) {
                     allocate_edges_list(va);
                     vertices_refcount.set_Unsafe(va, 1);
                 }
-                if (vertices_refcount.isValidUnsafe(vb) == false) {
+                if (vertices_refcount.isValid(vb) == false) {
                     allocate_edges_list(vb);
                     vertices_refcount.set_Unsafe(vb, 1);
                 }
@@ -2287,9 +2287,9 @@ namespace g3
 
             // find first free vertex, and last used vertex
             int iLastV = MaxVertexID - 1, iCurV = 0;
-            while (vertices_refcount.isValidUnsafe(iLastV) == false)
+            while (vertices_refcount.isValid(iLastV) == false)
                 iLastV--;
-            while (vertices_refcount.isValidUnsafe(iCurV))
+            while (vertices_refcount.isValid(iCurV))
                 iCurV++;
 
             DVector<short> vref = vertices_refcount.RawRefCounts;
@@ -2332,9 +2332,9 @@ namespace g3
 
                 // move cur forward one, last back one, and  then search for next valid
                 iLastV--; iCurV++;
-                while (vertices_refcount.isValidUnsafe(iLastV) == false)
+                while (vertices_refcount.isValid(iLastV) == false)
                     iLastV--;
-                while (vertices_refcount.isValidUnsafe(iCurV) && iCurV < iLastV)
+                while (vertices_refcount.isValid(iCurV) && iCurV < iLastV)
                     iCurV++;
             }
 
@@ -2354,9 +2354,9 @@ namespace g3
 
             // find first free triangle, and last valid triangle
             int iLastT = MaxTriangleID - 1, iCurT = 0;
-            while (triangles_refcount.isValidUnsafe(iLastT) == false)
+            while (triangles_refcount.isValid(iLastT) == false)
                 iLastT--;
-            while (triangles_refcount.isValidUnsafe(iCurT))
+            while (triangles_refcount.isValid(iCurT))
                 iCurT++;
 
             DVector<short> tref = triangles_refcount.RawRefCounts;
@@ -2384,9 +2384,9 @@ namespace g3
 
                 // move cur forward one, last back one, and  then search for next valid
                 iLastT--; iCurT++;
-                while (triangles_refcount.isValidUnsafe(iLastT) == false)
+                while (triangles_refcount.isValid(iLastT) == false)
                     iLastT--;
-                while (triangles_refcount.isValidUnsafe(iCurT) && iCurT < iLastT)
+                while (triangles_refcount.isValid(iCurT) && iCurT < iLastT)
                     iCurT++;
             }
 
@@ -2401,9 +2401,9 @@ namespace g3
 
             // find first free edge, and last used edge
             int iLastE = MaxEdgeID - 1, iCurE = 0;
-            while (edges_refcount.isValidUnsafe(iLastE) == false)
+            while (edges_refcount.isValid(iLastE) == false)
                 iLastE--;
-            while (edges_refcount.isValidUnsafe(iCurE))
+            while (edges_refcount.isValid(iCurE))
                 iCurE++;
 
             DVector<short> eref = edges_refcount.RawRefCounts;
@@ -2432,9 +2432,9 @@ namespace g3
 
                 // move cur forward one, last back one, and  then search for next valid
                 iLastE--; iCurE++;
-                while (edges_refcount.isValidUnsafe(iLastE) == false)
+                while (edges_refcount.isValid(iLastE) == false)
                     iLastE--;
-                while (edges_refcount.isValidUnsafe(iCurE) && iCurE < iLastE)
+                while (edges_refcount.isValid(iCurE) && iCurE < iLastE)
                     iCurE++;
             }
 
