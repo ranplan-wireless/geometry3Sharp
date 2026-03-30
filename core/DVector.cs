@@ -18,9 +18,9 @@ namespace g3
         int iCurBlockUsed;
         
         // [RMS] nBlockSize must be a power-of-two, so we can use bit-shifts in operator[]
-        int nBlockSize = 2048;   // (1 << 11)
-        const int nShiftBits = 11;
-        const int nBlockIndexBitmask = 2047;   // low 11 bits
+        int nBlockSize = 512;   // (1 << 9)
+        const int nShiftBits = 9;
+        const int nBlockIndexBitmask = 511;   // low 9 bits
 
         public DVector() {
             iCurBlock = 0;
