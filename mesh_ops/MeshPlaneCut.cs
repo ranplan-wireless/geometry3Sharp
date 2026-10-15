@@ -41,6 +41,11 @@ namespace g3
         // if non-null, we will only iterate through these edges
         public MeshFaceSelection CutFaceSet = null;
 
+        // Distance below which a vertex is treated as lying on the plane. Such vertices are snapped
+        // exactly onto the plane, so on-plane edges, edge crossings and positive-side removal all agree.
+        // Zero keeps the original behaviour (exact-zero test on the unnormalized plane function).
+        public double PlaneTolerance = 0;
+
         // Outputs
 		public List<EdgeLoop> CutLoops;
         public List<EdgeSpan> CutSpans;
@@ -79,15 +84,27 @@ namespace g3
             }
 
 			// compute signs
+			bool useTolerance = PlaneTolerance > 0;
+			Vector3d normal = useTolerance ? PlaneNormal.Normalized : PlaneNormal;
 			int MaxVID = Mesh.MaxVertexID;
 			double[] signs = new double[MaxVID];
 			gParallel.ForEach(Interval1i.Range(MaxVID), (vid) => {
 				if (Mesh.IsVertex(vid)) {
 					Vector3d v = Mesh.GetVertex(vid);
-					signs[vid] = (v - PlaneOrigin).Dot(PlaneNormal);
+					signs[vid] = (v - PlaneOrigin).Dot(normal);
 				} else
 					signs[vid] = invalidDist;
 			});
+
+			if (useTolerance) {
+				IEnumerable<int> snapSet = (CutVertexSet != null) ? (IEnumerable<int>)CutVertexSet : Interval1i.Range(MaxVID);
+				foreach (int vid in snapSet) {
+					if (Mesh.IsVertex(vid) == false || Math.Abs(signs[vid]) > PlaneTolerance)
+						continue;
+					Mesh.SetVertex(vid, Mesh.GetVertex(vid) - signs[vid] * normal);
+					signs[vid] = 0;
+				}
+			}
 
 			HashSet<int> ZeroEdges = new HashSet<int>();
 			HashSet<int> ZeroVertices = new HashSet<int>();
