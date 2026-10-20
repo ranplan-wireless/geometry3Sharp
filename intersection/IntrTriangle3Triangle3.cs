@@ -29,6 +29,11 @@ namespace g3
         // Note that when false, co-planar intersections will **NOT** be reported as intersections
         public bool ReportCoplanarIntersection = false;
 
+        // Distance below which a vertex of one triangle is treated as lying on the plane of the other,
+        // and by which the separating-axis tests in Test() are relaxed, so near-coplanar triangles are
+        // handled as coplanar. Zero keeps the original behaviour (absolute MathUtil.ZeroTolerance).
+        public double PlaneTolerance = 0;
+
         // result flags
 		public int Quantity = 0;
 		public IntersectionResult Result = IntersectionResult.NotComputed;
@@ -77,7 +82,8 @@ namespace g3
             int pos1, neg1, zero1;
             Index3i sign1;
             Vector3d dist1;
-            TrianglePlaneRelations(ref triangle1, ref plane0, out dist1, out sign1, out pos1, out neg1, out zero1);
+            double planeTol = PlaneTolerance > 0 ? PlaneTolerance : MathUtil.ZeroTolerance;
+            TrianglePlaneRelations(ref triangle1, ref plane0, planeTol, out dist1, out sign1, out pos1, out neg1, out zero1);
 
             if (pos1 == 3 || neg1 == 3) {
                 // Triangle1 is fully on one side of plane0.
@@ -165,7 +171,7 @@ namespace g3
             double N0dT0V0 = N0.Dot(triangle0.V0);
             double min1, max1;
             ProjectOntoAxis(ref triangle1, ref N0, out min1, out max1);
-            if (N0dT0V0 < min1 || N0dT0V0 > max1) {
+            if (N0dT0V0 < min1 - PlaneTolerance || N0dT0V0 > max1 + PlaneTolerance) {
                 return false;
             }
 
@@ -190,7 +196,7 @@ namespace g3
                 // separation.
                 double N1dT1V0 = N1.Dot(triangle1.V0);
                 ProjectOntoAxis(ref triangle0, ref N1, out min0, out max0);
-                if (N1dT1V0 < min0 || N1dT1V0 > max0) {
+                if (N1dT1V0 < min0 - PlaneTolerance || N1dT1V0 > max0 + PlaneTolerance) {
                     return false;
                 }
 
@@ -200,7 +206,7 @@ namespace g3
                         dir = E0[i0].UnitCross(E1[i1]);
                         ProjectOntoAxis(ref triangle0, ref dir, out min0, out max0);
                         ProjectOntoAxis(ref triangle1, ref dir, out min1, out max1);
-                        if (max0 < min1 || max1 < min0) {
+                        if (max0 + PlaneTolerance < min1 || max1 + PlaneTolerance < min0) {
                             return false;
                         }
                     }
@@ -214,7 +220,7 @@ namespace g3
                     dir = N0.UnitCross(E0[i0]);
                     ProjectOntoAxis(ref triangle0, ref dir, out min0, out max0);
                     ProjectOntoAxis(ref triangle1, ref dir, out min1, out max1);
-                    if (max0 < min1 || max1 < min0) {
+                    if (max0 + PlaneTolerance < min1 || max1 + PlaneTolerance < min0) {
                         return false;
                     }
                 }
@@ -224,7 +230,7 @@ namespace g3
                     dir = N1.UnitCross(E1[i1]);
                     ProjectOntoAxis(ref triangle0, ref dir, out min0, out max0);
                     ProjectOntoAxis(ref triangle1, ref dir, out min1, out max1);
-                    if (max0 < min1 || max1 < min0) {
+                    if (max0 + PlaneTolerance < min1 || max1 + PlaneTolerance < min0) {
                         return false;
                     }
                 }
@@ -368,6 +374,12 @@ namespace g3
         static public void TrianglePlaneRelations ( ref Triangle3d triangle, ref Plane3d plane,
             out Vector3d distance, out Index3i sign, out int positive, out int negative, out int zero)
         {
+            TrianglePlaneRelations(ref triangle, ref plane, MathUtil.ZeroTolerance, out distance, out sign, out positive, out negative, out zero);
+        }
+
+        static public void TrianglePlaneRelations ( ref Triangle3d triangle, ref Plane3d plane, double tolerance,
+            out Vector3d distance, out Index3i sign, out int positive, out int negative, out int zero)
+        {
             // Compute the signed distances of triangle vertices to the plane.  Use
             // an epsilon-thick plane test.
             positive = 0;
@@ -377,10 +389,10 @@ namespace g3
             sign = Index3i.Zero;
             for (int i = 0; i < 3; ++i) {
                 distance[i] = plane.DistanceTo(triangle[i]);
-                if (distance[i] > MathUtil.ZeroTolerance) {
+                if (distance[i] > tolerance) {
                     sign[i] = 1;
                     positive++;
-                } else if (distance[i] < -MathUtil.ZeroTolerance) {
+                } else if (distance[i] < -tolerance) {
                     sign[i] = -1;
                     negative++;
                 } else {
