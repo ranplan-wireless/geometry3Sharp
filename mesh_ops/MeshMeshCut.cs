@@ -27,6 +27,17 @@ namespace g3
         // points within this tolerance are merged
         public double VertexSnapTol = 0.00001;
 
+        // Scale-aware geometric tolerance. When > 0, near-coplanar triangles are intersected as coplanar,
+        // vertices within this distance are merged (at least VertexSnapTol), and RemoveContained decides
+        // triangles lying on the cut surface by their normals instead of the winding number, whose sign
+        // there is floating-point noise. Zero keeps the original behaviour.
+        public double Tolerance = 0;
+
+        // Target triangles whose normal is within this |cos| of a cut triangle's normal count as coplanar with it.
+        const double CoplanarNormalDot = 0.999;
+
+        double snap_tol;
+
         // List of vertices in output Target that are on the
         // cut path, after calling RemoveContained. 
         // TODO: still missing some vertices??
@@ -35,6 +46,7 @@ namespace g3
 
         public void Compute()
         {
+            snap_tol = (Tolerance > 0) ? Math.Max(VertexSnapTol, Tolerance) : VertexSnapTol;
             double cellSize = Target.CachedBounds.MaxDim / 64;
             PointHash = new PointHashGrid3d<int>(cellSize, -1);
 
@@ -61,7 +73,12 @@ namespace g3
         }
 
 
-        public void RemoveContained()
+        /// <summary>
+        /// Remove Target triangles inside CutMesh. When Tolerance > 0, a triangle lying on the cut surface is
+        /// removed if its normal faces the same way as the cut surface there (or always, if
+        /// ignoreCoplanarNormalDirection), and kept if it faces the opposite way.
+        /// </summary>
+        public void RemoveContained(bool ignoreCoplanarNormalDirection = false)
         {
             DMeshAABBTree3 spatial = new DMeshAABBTree3(CutMesh, true);
             spatial.WindingNumber(Vector3d.Zero);
@@ -69,7 +86,11 @@ namespace g3
             SafeListBuilder<int> removeT = new SafeListBuilder<int>();
             gParallel.ForEach(Target.TriangleIndices(), (tid) => {
                 Vector3d v = Target.GetTriCentroid(tid);
-                if (spatial.WindingNumber(v) > threshold)
+                bool remove;
+                if (Tolerance > 0 && is_on_cut_surface(spatial, tid, v, ignoreCoplanarNormalDirection, out remove)) {
+                    if (remove)
+                        removeT.SafeAdd(tid);
+                } else if (spatial.WindingNumber(v) > threshold)
                     removeT.SafeAdd(tid);
             });
             MeshEditor.RemoveTriangles(Target, removeT.Result);
@@ -81,6 +102,19 @@ namespace g3
                 if (Target.IsVertex(vid))
                     CutVertices.Add(vid);
             }
+        }
+
+        bool is_on_cut_surface(DMeshAABBTree3 cutSpatial, int tid, Vector3d centroid, bool ignoreNormalDirection, out bool remove)
+        {
+            remove = false;
+            int cut_tid = cutSpatial.FindNearestTriangle(centroid, Tolerance);
+            if (cut_tid == DMesh3.InvalidID)
+                return false;
+            double dot = Target.GetTriNormal(tid).Dot(CutMesh.GetTriNormal(cut_tid));
+            if (Math.Abs(dot) < CoplanarNormalDot)
+                return false;
+            remove = ignoreNormalDirection || dot > 0;
+            return true;
         }
 
         public void AppendSegments(double r)
@@ -179,7 +213,7 @@ namespace g3
             // TODO: do we need to care about intersection vertices?
             DMeshAABBTree3 targetSpatial = new DMeshAABBTree3(Target, true);
             DMeshAABBTree3 cutSpatial = new DMeshAABBTree3(CutMesh, true);
-            var intersections = targetSpatial.FindAllIntersections(cutSpatial);
+            var intersections = targetSpatial.FindAllIntersections(cutSpatial, null, Tolerance);
 
             // for each segment, for each vtx, determine if it is 
             // at an existing vertex, on-edge, or in-face
@@ -193,6 +227,11 @@ namespace g3
                 Segments[i] = iseg;
                 for (int j = 0; j < 2; ++j) {
                     Vector3d v = points[j];
+                    // coplanar intersection points are computed on the cut triangle's plane; pull them onto the target face
+                    if (Tolerance > 0) {
+                        Vector3d n = BaseFaceNormals[isect.t0];
+                        v -= (v - BaseFaceCentroids[isect.t0]).Dot(n) * n;
+                    }
 
                     // if this exact vtx coord has been seen, use same vtx
                     SegmentVtx sv;
@@ -472,6 +511,8 @@ namespace g3
             path.AppendVertex(p0); path.AppendVertex(p1);
 
             MeshInsertUVPolyCurve insert = new MeshInsertUVPolyCurve(mesh, path);
+            if (Tolerance > 0)
+                insert.SpatialEpsilon = Tolerance;
             insert.Apply();
 
             MeshVertexSelection cutVerts = new MeshVertexSelection(mesh);
@@ -597,13 +638,13 @@ namespace g3
         protected int on_edge(ref Triangle3d tri, ref Vector3d v)
         {
             Segment3d s01 = new Segment3d(tri.V0, tri.V1);
-            if (s01.DistanceSquared(v) < VertexSnapTol * VertexSnapTol)
+            if (s01.DistanceSquared(v) < snap_tol * snap_tol)
                 return 0;
             Segment3d s12 = new Segment3d(tri.V1, tri.V2);
-            if (s12.DistanceSquared(v) < VertexSnapTol * VertexSnapTol)
+            if (s12.DistanceSquared(v) < snap_tol * snap_tol)
                 return 1;
             Segment3d s20 = new Segment3d(tri.V2, tri.V0);
-            if (s20.DistanceSquared(v) < VertexSnapTol * VertexSnapTol)
+            if (s20.DistanceSquared(v) < snap_tol * snap_tol)
                 return 2;
             return -1;
         }
@@ -623,7 +664,7 @@ namespace g3
         {
             Index2i ev = Target.GetEdgeV(eid);
             Segment3d seg = new Segment3d(Target.GetVertex(ev.a), Target.GetVertex(ev.b));
-            return seg.DistanceSquared(v) < VertexSnapTol * VertexSnapTol;
+            return seg.DistanceSquared(v) < snap_tol * snap_tol;
         }
 
         protected bool is_in_triangle(int tid, Vector3d v)
@@ -643,7 +684,7 @@ namespace g3
         /// </summary>
         protected int find_existing_vertex(Vector3d pt)
         {
-            return find_nearest_vertex(pt, VertexSnapTol);
+            return find_nearest_vertex(pt, snap_tol);
         }
         /// <summary>
         /// find closest vertex, within searchRadius

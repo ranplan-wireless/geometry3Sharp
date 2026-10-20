@@ -676,6 +676,16 @@ namespace g3
         /// </summary>
         public virtual IntersectionsQueryResult FindAllIntersections(DMeshAABBTree3 otherTree, Func<Vector3d, Vector3d> TransformF = null)
         {
+            return FindAllIntersections(otherTree, TransformF, 0);
+        }
+
+        /// <summary>
+        /// As FindAllIntersections, but triangles within planeTolerance of each other's plane are treated
+        /// as touching/coplanar, and box overlap tests are padded by planeTolerance so such pairs are not
+        /// culled. Zero keeps the original behaviour.
+        /// </summary>
+        public virtual IntersectionsQueryResult FindAllIntersections(DMeshAABBTree3 otherTree, Func<Vector3d, Vector3d> TransformF, double planeTolerance)
+        {
             if (mesh_timestamp != mesh.ShapeTimestamp)
                 throw new Exception("DMeshAABBTree3.FindIntersections: mesh has been modified since tree construction");
 
@@ -685,6 +695,7 @@ namespace g3
 
             IntrTriangle3Triangle3 intr = new IntrTriangle3Triangle3(new Triangle3d(), new Triangle3d());
             intr.ReportCoplanarIntersection = true;
+            intr.PlaneTolerance = planeTolerance;
             find_intersections(root_index, otherTree, TransformF, otherTree.root_index, 0, intr, result);
 
             return result;
@@ -694,6 +705,7 @@ namespace g3
                                           int oBox, int depth,
                                           IntrTriangle3Triangle3 intr, IntersectionsQueryResult result)
         {
+            double boxTol = intr.PlaneTolerance;
             int idx = box_to_index[iBox];
             int odx = otherTree.box_to_index[oBox];
 
@@ -775,6 +787,8 @@ namespace g3
                 // [TODO] could we do efficient box.intersects(transform(box)) test?
                 //   ( Contains() on each xformed point? )
                 AxisAlignedBox3d bounds = get_boxd(iBox);
+                if (boxTol > 0)
+                    bounds.Expand(boxTol);
 
                 int oChild1 = otherTree.index_list[odx];
                 if ( oChild1 < 0 ) {                 // 1 child, descend if nearer than cur min-dist
@@ -799,6 +813,8 @@ namespace g3
             } else {
                 // descend our tree nodes if they intersect w/ current bounds of other tree
                 AxisAlignedBox3d oBounds = otherTree.get_boxd(oBox, TransformF);
+                if (boxTol > 0)
+                    oBounds.Expand(boxTol);
 
                 int iChild1 = index_list[idx];
                 if ( iChild1 < 0 ) {                 // 1 child, descend if nearer than cur min-dist
