@@ -9,6 +9,17 @@ using System.Threading.Tasks;
 namespace g3
 {
     /// <summary>
+    /// What MeshMeshCut.RemoveContained does with a Target triangle lying on the cut surface,
+    /// depending on whether its normal faces the same way as the cut surface there.
+    /// </summary>
+    public enum CoplanarPolicy
+    {
+        RemoveSameNormal,
+        RemoveOppositeNormal,
+        RemoveAll
+    }
+
+    /// <summary>
     /// 
     /// 
     /// TODO:
@@ -80,6 +91,15 @@ namespace g3
         /// </summary>
         public void RemoveContained(bool ignoreCoplanarNormalDirection = false)
         {
+            RemoveContained(ignoreCoplanarNormalDirection ? CoplanarPolicy.RemoveAll : CoplanarPolicy.RemoveSameNormal);
+        }
+
+        /// <summary>
+        /// Remove Target triangles inside CutMesh. When Tolerance > 0, a triangle lying on the cut surface is
+        /// removed or kept according to coplanarPolicy.
+        /// </summary>
+        public void RemoveContained(CoplanarPolicy coplanarPolicy)
+        {
             DMeshAABBTree3 spatial = new DMeshAABBTree3(CutMesh, true);
             spatial.WindingNumber(Vector3d.Zero);
             var threshold = CutMesh.IsClosed() ? 0.9 : 0.45;
@@ -87,7 +107,7 @@ namespace g3
             gParallel.ForEach(Target.TriangleIndices(), (tid) => {
                 Vector3d v = Target.GetTriCentroid(tid);
                 bool remove;
-                if (Tolerance > 0 && is_on_cut_surface(spatial, tid, v, ignoreCoplanarNormalDirection, out remove)) {
+                if (Tolerance > 0 && is_on_cut_surface(spatial, tid, v, coplanarPolicy, out remove)) {
                     if (remove)
                         removeT.SafeAdd(tid);
                 } else if (spatial.WindingNumber(v) > threshold)
@@ -104,7 +124,7 @@ namespace g3
             }
         }
 
-        bool is_on_cut_surface(DMeshAABBTree3 cutSpatial, int tid, Vector3d centroid, bool ignoreNormalDirection, out bool remove)
+        bool is_on_cut_surface(DMeshAABBTree3 cutSpatial, int tid, Vector3d centroid, CoplanarPolicy policy, out bool remove)
         {
             remove = false;
             int cut_tid = cutSpatial.FindNearestTriangle(centroid, Tolerance);
@@ -113,7 +133,11 @@ namespace g3
             double dot = Target.GetTriNormal(tid).Dot(CutMesh.GetTriNormal(cut_tid));
             if (Math.Abs(dot) < CoplanarNormalDot)
                 return false;
-            remove = ignoreNormalDirection || dot > 0;
+            switch (policy) {
+                case CoplanarPolicy.RemoveSameNormal: remove = dot > 0; break;
+                case CoplanarPolicy.RemoveOppositeNormal: remove = dot < 0; break;
+                default: remove = true; break;
+            }
             return true;
         }
 
